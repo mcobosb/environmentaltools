@@ -4,18 +4,34 @@
 
 It is compound by a list of subpackages that focus on:
 
-| Módulo                          | Función principal                                        | Estado        |
-|---------------------------------|----------------------------------------------------------|---------------|
-| environmentaltools.data         | Download environmental data from various sources (CMEMS) | Estable       |
-| environmentaltools.estuaries    | Saint-Venant equations for estuarine dynamics            | En desarrollo |
-| environmentaltools.examples     | Full catalog of examples of each package                 | Estable       |
-| environmentaltools.graphics     | Visualization tools for environmental data               | Estable       |
-| environmentaltools.processes    | Wave modeling and environmental processes (SWAN, COPLA)  | Estable       |
-| environmentaltools.spatial      | Geospatial analysis and topography/bathymetry processing | Estable       |
-| environmentaltools.spatiotemporal| BME and raster-based spatiotemporal analysis            | Estable       |
-| environmentaltools.spectral     | Spectral analysis (Lomb-Scargle periodogram)             | Estable       |
-| environmentaltools.temporal     | Time series processing and statistical characterization  | En desarrollo |
-| environmentaltools.utils        | Auxiliary utilities for data handling and processing     | Estable       |
+**Table 1**. Package name, mean objective and state of packages included in environmentaltools.
+| Package name                    | Mean objectiv                                            | 
+State         | Base installation
+|---------------------------------|----------------------------------------------------------|
+--------------|-----|
+| environmentaltools.data         | Download environmental data from various sources (CMEMS) | Stable        | No  |
+| environmentaltools.estuaries    | Saint-Venant equations for estuarine dynamics            | 
+Under develop | No  |
+| environmentaltools.examples     | Full catalog of examples of each package                 | Stable        | Yes |
+| environmentaltools.graphics     | Visualization tools for environmental data               | Stable        | Yes |
+| environmentaltools.processes    | Wave modeling and environmental processes                | Stable        | No  |
+| environmentaltools.spatial      | Geospatial analysis and topography/bathymetry processing | Stable        | No  |
+| environmentaltools.spatiotemporal| BME and raster-based spatiotemporal analysis            | 
+Under develop | No  |
+| environmentaltools.spectral     | Spectral analysis (Lomb-Scargle periodogram)             | 
+Under develop | No  |
+| environmentaltools.temporal     | Time series processing and statistical characterization  |
+Stable        | Yes |
+| environmentaltools.utils        | Auxiliary utilities for data handling and processing     | 
+Stable        | Yes |
+
+Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
+
+python -m venv environmentaltools
+pip install -e .[download] # for installing download package
+pip install -e .[temporal] # for installing temporal package
+pip install -e .[temporal, spatiotemporal] # for installing both temporal and spatiotemporal
+pip install -e .[all] # for installing the full repository
 
 The tool is developed by Manuel Cobos (https://github.es/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA whishes a good experience in learning process. Enjoy it!
 
