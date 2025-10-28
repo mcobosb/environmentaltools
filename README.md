@@ -16,15 +16,15 @@ It is compound by a list of subpackages that focus on:
 | environmentaltools.**spatiotemporal**| BME and raster-based spatiotemporal analysis            | Under develop | No  |
 | environmentaltools.**spectral**     | Spectral analysis (Lomb-Scargle periodogram)             | Under develop | No  |
 | environmentaltools.**temporal**     | Time series processing and statistical characterization  | Stable        | **Yes** |
-| environmentaltools.**utils**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes* |
+| environmentaltools.**utils**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes** |
 
 Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
 
-python -m venv environmentaltools
-pip install -e .[download] # for installing download package
-pip install -e .[temporal] # for installing temporal package
-pip install -e .[temporal, spatiotemporal] # for installing both temporal and spatiotemporal
-pip install -e .[all] # for installing the full repository
+`python -m venv environmentaltools`
+`pip install -e .[download]` # for installing download package  
+`pip install -e .[temporal]` # for installing temporal package  
+`pip install -e .[temporal, spatiotemporal]` # for installing both temporal and spatiotemporal  
+`pip install -e .[all]` # for installing the full repository  
 
 The tool is developed by Manuel Cobos (https://github.es/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA whishes a good experience in learning process. Enjoy it!
 
