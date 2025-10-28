@@ -7,16 +7,16 @@ It is compound by a list of subpackages that focus on:
 **Table 1**. Package name, mean objective and state of packages included in environmentaltools.
 | Package name                    | Mean objectiv                                            | State         | Base installation
 |---------------------------------|----------------------------------------------------------| --------------|-----|
-| environmentaltools.data         | Download environmental data from various sources (CMEMS) | Stable        | No  |
-| environmentaltools.estuaries    | Saint-Venant equations for estuarine dynamics            | Under develop | No  |
-| environmentaltools.examples     | Full catalog of examples of each package                 | Stable        | Yes |
-| environmentaltools.graphics     | Visualization tools for environmental data               | Stable        | Yes |
-| environmentaltools.processes    | Wave modeling and environmental processes                | Stable        | No  |
-| environmentaltools.spatial      | Geospatial analysis and topography/bathymetry processing | Stable        | No  |
-| environmentaltools.spatiotemporal| BME and raster-based spatiotemporal analysis            | Under develop | No  |
-| environmentaltools.spectral     | Spectral analysis (Lomb-Scargle periodogram)             | Under develop | No  |
-| environmentaltools.temporal     | Time series processing and statistical characterization  | Stable        | Yes |
-| environmentaltools.utils        | Auxiliary utilities for data handling and processing     | Stable        | Yes |
+| environmentaltools.**data**         | Download environmental data from various sources (CMEMS) | Stable        | No  |
+| environmentaltools.**estuaries**    | Saint-Venant equations for estuarine dynamics            | Under develop | No  |
+| environmentaltools.**examples**     | Full catalog of examples of each package                 | Stable        | **Yes** |
+| environmentaltools.**graphics**     | Visualization tools for environmental data               | Stable        | **Yes** |
+| environmentaltools.**processes**    | Wave modeling and environmental processes                | Stable        | No  |
+| environmentaltools.**spatial**      | Geospatial analysis and topography/bathymetry processing | Stable        | No  |
+| environmentaltools.**spatiotemporal**| BME and raster-based spatiotemporal analysis            | Under develop | No  |
+| environmentaltools.**spectral**     | Spectral analysis (Lomb-Scargle periodogram)             | Under develop | No  |
+| environmentaltools.**temporal**     | Time series processing and statistical characterization  | Stable        | **Yes** |
+| environmentaltools.**utils**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes* |
 
 Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
 
