@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "environmentaltools"
+version = "2026.0.1"
+authors = [
+  { name = "Manuel Cobos", email = "m_cobos@hotmail.es" },
+]
+maintainers = [
+    { name = "Pedro Otiñar", email = "potinar@ugr.es"},
+    { name = "Marcus Silva", email = "marcussanta@ugr.es"}
+]
+description = "environmentaltools is an open-source Python package for modular environmental management, integrating timeseries analysis, raster-based processing, decision matrices, sensor workflows, and legal-administrative support for coastal and terrestrial systems."
+readme = { file = "README.md", content-type = "text/markdown"} 
+requires-python = ">=3.13"
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 4 - Beta",
+
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.13",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://example.com"
+Documentation = "https://readthedocs.org"
+Repository = "https://github.com/me/spam.git"
+Issues = "https://github.com/me/spam/issues"
+Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
