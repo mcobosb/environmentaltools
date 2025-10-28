@@ -31,6 +31,13 @@ classifiers = [
 ]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
+dependencies = ["os", "time", "pathlib", "dotenv", "typing", "logging", "datetime"]  # TODO: update-comunes
+
+[project.optional-dependencies]
+donwload = ["rioxarray", "matplotlib"]
+spatiotemporal-raster = ["scipy"]
+spectral = [""]
+temporal = ["scipy"]
 
 [project.urls]
 Homepage = "https://example.com"

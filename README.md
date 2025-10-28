@@ -8,6 +8,7 @@ It is compound by a list of subpackages that focus on:
 |---------------------------------|----------------------------------------------------------|---------------|
 | environmentaltools.data         | Download environmental data from various sources (CMEMS) | Estable       |
 | environmentaltools.estuaries    | Saint-Venant equations for estuarine dynamics            | En desarrollo |
+| environmentaltools.examples     | Full catalog of examples of each package                 | Estable       |
 | environmentaltools.graphics     | Visualization tools for environmental data               | Estable       |
 | environmentaltools.processes    | Wave modeling and environmental processes (SWAN, COPLA)  | Estable       |
 | environmentaltools.spatial      | Geospatial analysis and topography/bathymetry processing | Estable       |
@@ -16,11 +17,16 @@ It is compound by a list of subpackages that focus on:
 | environmentaltools.temporal     | Time series processing and statistical characterization  | En desarrollo |
 | environmentaltools.utils        | Auxiliary utilities for data handling and processing     | Estable       |
 
+The tool is developed by Manuel Cobos (https://github.es/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA whishes a good experience in learning process. Enjoy it!
 
 ## Subpackages description
 
 ### **data** subpackage
 The *data* subpackage provides tools for downloading environmental data from various online sources. It includes automated functions to access and retrieve data from the **Marine Copernicus Service (CMEMS)**, allowing users to download oceanographic variables (sea surface temperature, currents, wave data, etc.) for specific spatial domains, depth ranges, and time periods. This module simplifies the process of obtaining high-quality environmental data for analysis and modeling purposes.
+
+### **examples** subpackage
+In the *example** folder can be found a list of Jupyter Notebooks. Each one described how to run the code and how to use the main functions included in *environmentaltools*.
+
 
 ### **estuaries** subpackage
 The *estuaries* subpackage implements numerical solutions for the **Saint-Venant equations** applied to estuarine dynamics. It provides tools to simulate hydrodynamic processes in estuaries, including water level variations, flow velocities, salinity transport, and density computations. The module is designed to study the consequences of natural and anthropogenic actions in estuarine environments, supporting management and decision-making processes for coastal water bodies.
@@ -44,10 +50,6 @@ The *spectral* subpackage provides tools for **spectral analysis** of time serie
 The subpackage *temporal* package aimed at providing users with a friendly, general code to statistically characterize a vector random process (RP) to obtain realizations of it. It is implemented in Python - an interpreted, high-level, object-oriented programming language widely used in the scientific community - and it makes the most of the Python packages ecosystem. Among the existing Python packages, it uses Numpy, which is the fundamental package for scientific computing in Python [["1"]](#1), SciPy, which offers a wide range of optimization and statistics routines [["2"]](#2), Matplotlib [["3"]](#3), that includes routines to obtain high-quality graphics, and Pandas [["4"]](#4) to analyse and manipulate data.
 
 The tools implemented in the package named *temporal* allow to capture the statistical properties of a **non stationary (NS) vector RP** by using **compound or piecewise parametric PMs** to properly describe all the range of values and to **simulate uni- or multivariate time series** with the same random behavior. The statistical parameters of the distributions are assumed to depend on time and are expanded into a Generalized Fourier Series (GFS) [["5"]](#5) in order to reproduce their NS behavior. The applicability of the present approach has been illustrated in several works with different purposes, among others: (i) the observed wave climate variability in the preceding century and expected changes in projections under a climate change scenario [["6"]](#6); (ii) the optimal design and management of an oscillating water column system [["7"]](#7) [["8"]](#8), (iii) the planning of maintenance strategies of coastal structures [["9"]](#9), (iv) the analysis of monthly Wolf sunspot number over a 22 year period [["5"]](#5), and (v) the simulation of estuarine water conditions for the management of the estuary [["10"]](#10).
-
-In the **example folder** can be found a list of Jupyter Notebooks. Each one described how to run the code and how to use the main functions included in *environmentaltools*.
-
-The **Environmental Fluid Dynamics** team of the University of Granada whishes a good experience in learning process. Enjoy it!
 
 ### **utils** subpackage
 The *utils* subpackage contains a collection of **auxiliary utilities** that support the functionality of other modules within the package. It includes functions for data loading and saving in various formats (NetCDF, CSV, pickle), file reading and writing operations, data manipulation and transformation, xarray dataset utilities, and miscellaneous helper functions. The module provides a consistent interface for common operations across the package, improving code reusability and maintainability.
