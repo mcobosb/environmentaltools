@@ -6,11 +6,10 @@ build-backend = "hatchling.build"
 name = "environmentaltools"
 version = "2026.0.1"
 authors = [
-  { name = "Manuel Cobos", email = "m_cobos@hotmail.es" },
+  { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
 maintainers = [
-    { name = "Pedro Otiñar", email = "potinar@ugr.es"},
-    { name = "Marcus Silva", email = "marcussanta@ugr.es"}
+   { name = "Manuel Cobos", email = "mcobosb@ugr.es" }
 ]
 description = "environmentaltools is an open-source Python package for modular environmental management, integrating timeseries analysis, raster-based processing, decision matrices, sensor workflows, and legal-administrative support for coastal and terrestrial systems."
 readme = { file = "README.md", content-type = "text/markdown"} 
@@ -31,17 +30,68 @@ classifiers = [
 ]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-dependencies = ["os", "time", "pathlib", "dotenv", "typing", "logging", "datetime"]  # TODO: update-comunes
+dependencies = [
+    "python-dotenv",
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "xarray",
+    "cmocean",
+    "seaborn",
+    "statsmodels",
+    "windrose",
+    "pillow",
+    "scikit-learn",
+    "cartopy",
+    "rasterio",
+    "lxml",
+    "geopandas",
+    "pyproj",
+    "affine",
+    "pyshp",
+    "pypdf2",
+    "tabula-py",
+    "requests",
+]
 
 [project.optional-dependencies]
-donwload = ["rioxarray", "matplotlib"]
-spatiotemporal-raster = ["scipy"]
-spectral = [""]
-temporal = ["scipy"]
+download = [
+    "earthengine-api",
+    "geemap",
+    "cdo",
+    "cdsapi",
+    "configobj",
+    "pydap",
+    "esgf-pyclient",
+    "tqdm",
+    "werkzeug",
+]
+examples = ["ipykernel"]
+spatial = ["folium"]
+spatiotemporal = ["pymcdm"]
+spectral = ["pytmd", "utide"]
+all = [
+    "earthengine-api", # download
+    "geemap",
+    "cdo",
+    "cdsapi",
+    "configobj",
+    "pydap",
+    "esgf-pyclient",
+    "tqdm",
+    "werkzeug",
+    "ipykernel", # examples
+    "folium", # spatial
+    "pymcdm", # spatiotemporal
+    "pytmd", # spectral
+]
 
 [project.urls]
-Homepage = "https://example.com"
+Homepage = "https://barrier.dinamicaambiental.es"
 Documentation = "https://readthedocs.org"
-Repository = "https://github.com/me/spam.git"
-Issues = "https://github.com/me/spam/issues"
-Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+Repository = "https://github.com/environmentaltools"
+Changelog = "https://github.com/environmentaltools/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/environmentaltools"]
