@@ -5,28 +5,41 @@
 It is compound by a list of subpackages that focus on:
 
 **Table 1**. Package name, mean objective and state of packages included in environmentaltools.
-| Package name                    | Mean objectiv                                            | State         | Base installation
+| Package name                    | Mean objective                                           | State         | Base installation
 |---------------------------------|----------------------------------------------------------| --------------|-----|
+| environmentaltools.**common**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes** |
 | environmentaltools.**data**         | Download environmental data from various sources (CMEMS) | Stable        | No  |
-| environmentaltools.**estuaries**    | Saint-Venant equations for estuarine dynamics            | Under develop | No  |
-| environmentaltools.**examples**     | Full catalog of examples of each package                 | Stable        | **Yes** |
+| environmentaltools.**examples**     | Full catalog of examples of each package                 | Stable        | No  |
 | environmentaltools.**graphics**     | Visualization tools for environmental data               | Stable        | **Yes** |
 | environmentaltools.**processes**    | Wave modeling and environmental processes                | Stable        | No  |
 | environmentaltools.**spatial**      | Geospatial analysis and topography/bathymetry processing | Stable        | No  |
 | environmentaltools.**spatiotemporal**| BME and raster-based spatiotemporal analysis            | Under develop | No  |
 | environmentaltools.**spectral**     | Spectral analysis (Lomb-Scargle periodogram)             | Under develop | No  |
 | environmentaltools.**temporal**     | Time series processing and statistical characterization  | Stable        | **Yes** |
-| environmentaltools.**utils**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes** |
 
 Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
 
-`python -m venv environmentaltools`
+`python -m venv environmentaltools`  
+`pip install .` # for installing Basic packages (common, graphics, temporal)  
 `pip install -e .[download]` # for installing download package  
-`pip install -e .[temporal]` # for installing temporal package  
-`pip install -e .[temporal, spatiotemporal]` # for installing both temporal and spatiotemporal  
+`pip install -e .[spatiotemporal]` # for installing spatiotemporal package  
+`pip install -e .[estuaries,examples]` # for installing both estuaries and examples  
 `pip install -e .[all]` # for installing the full repository  
 
-The tool is developed by Manuel Cobos (https://github.es/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA whishes a good experience in learning process. Enjoy it!
+## 📊 LaTeX support for figure rendering
+
+This package uses LaTeX to render text in plots and figures (e.g., axis labels, titles, legends).  
+To enable this feature, you must have a LaTeX distribution installed and available in your system `PATH`.
+
+Supported distributions:
+- [MiKTeX](https://miktex.org/download) (Windows)
+- [TeX Live](https://tug.org/texlive/) (Cross-platform)
+- [TinyTeX](https://yihui.org/tinytex/) (Lightweight)
+
+Once installed, make sure the `latex` command is available in your terminal.  
+The system will automatically use LaTeX to render text in figures if `text.usetex = True` is enabled.
+
+The tool is developed by Manuel Cobos (https://github.com/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA wishes a good experience in learning process. Enjoy it!
 
 ## Subpackages description
 
@@ -35,10 +48,6 @@ The *data* subpackage provides tools for downloading environmental data from var
 
 ### **examples** subpackage
 In the *example** folder can be found a list of Jupyter Notebooks. Each one described how to run the code and how to use the main functions included in *environmentaltools*.
-
-
-### **estuaries** subpackage
-The *estuaries* subpackage implements numerical solutions for the **Saint-Venant equations** applied to estuarine dynamics. It provides tools to simulate hydrodynamic processes in estuaries, including water level variations, flow velocities, salinity transport, and density computations. The module is designed to study the consequences of natural and anthropogenic actions in estuarine environments, supporting management and decision-making processes for coastal water bodies.
 
 ### **graphics** subpackage
 The *graphics* subpackage offers a comprehensive set of visualization tools specifically designed for environmental data. It includes functions to create 2D and 3D plots, spatial maps, time series visualizations, scatter plots for Maximum Dissimilarity Algorithm (MDA) cases, regime diagrams, regression plots, and spatiotemporal representations. The module leverages Matplotlib and specialized colormaps (cmocean) to produce publication-quality figures for scientific communication.
@@ -63,78 +72,8 @@ The tools implemented in the package named *temporal* allow to capture the stati
 ### **utils** subpackage
 The *utils* subpackage contains a collection of **auxiliary utilities** that support the functionality of other modules within the package. It includes functions for data loading and saving in various formats (NetCDF, CSV, pickle), file reading and writing operations, data manipulation and transformation, xarray dataset utilities, and miscellaneous helper functions. The module provides a consistent interface for common operations across the package, improving code reusability and maintainability.
 
+## Author's Note
 
-## References
-<a id="1">[1]</a> 
-Harris, Charles R. and Millman, K. Jarrod and
-    van der Walt, Stéfan J and Gommers, Ralf and
-    Virtanen, Pauli and Cournapeau, David and
-    Wieser, Eric and Taylor, Julian and Berg, Sebastian and
-    Smith, Nathaniel J. and Kern, Robert and Picus, Matti and
-    Hoyer, Stephan and van Kerkwijk, Marten H. and
-    Brett, Matthew and Haldane, Allan and
-    Fernández del Río, Jaime and Wiebe, Mark and
-    Peterson, Pearu and Gérard-Marchant, Pierre and
-    Sheppard, Kevin and Reddy, Tyler and Weckesser, Warren and
-    Abbasi, Hameer and Gohlke, Christoph and
-    Oliphant, Travis E. (2020). 
-Array programming with {NumPy}.
-Nature.
+This project emerged from more than 12 years of work at GDFA across multiple research and engineering projects, where numerous disparate tools were developed—nearly all in Python. The goal was to consolidate these scattered solutions and make both advanced and fundamental environmental analysis methods accessible to a broader audience. By unifying these tools into a cohesive, modular framework, I hope to enable technical teams and researchers to deploy robust environmental workflows without relying on proprietary software. Feedback, suggestions, and contributions are always welcome.
 
-<a id="2">[2]</a> 
-Virtanen, Pauli and Gommers, Ralf and Oliphant, Travis E. and
-  Haberland, Matt and Reddy, Tyler and Cournapeau, David and
-  Burovski, Evgeni and Peterson, Pearu and Weckesser, Warren and
-  Bright, Jonathan and {van der Walt}, Stéfan J. and
-  Brett, Matthew and Wilson, Joshua and Millman, K. Jarrod and
-  Mayorov, Nikolay and Nelson, Andrew R. J. and Jones, Eric and
-  Kern, Robert and Larson, Eric and Carey, C J and
-  Polat, Ilhan and Feng, Yu and Moore, Eric W. and
-  {VanderPlas}, Jake and Laxalde, Denis and Perktold, Josef and
-  Cimrman, Robert and Henriksen, Ian and Quintero, E. A. and
-  Harris, Charles R. and Archibald, Anne M. and
-  Ribeiro, Antonio H. and Pedregosa, Fabian and
-  {van Mulbregt}, Paul and {SciPy 1.0 Contributors} (2020).
-{{SciPy} 1.0: Fundamental Algorithms for Scientific
-Computing in Python}.
-Nature Methods.
-  
-<a id="3">[3]</a> 
-John D. Hunter.
-Matplotlib: A 2D Graphics Environment.
-Computing in Science & Engineering.
-
-<a id="4">[4]</a> 
-McKinney, Wes and others (2010).
-Data structures for statistical computing in python.
-Proceedings of the 9th Python in Science Conference.
-
-<a id="5">[5]</a> 
-Cobos, M. and Otíñar, P. and Magaña, P. and Baquerizo, A. (2021)
-A method to characterize and simulate climate, Earth or environmental vector random processes.
-Submitted to Probabilistic Engineering and Mechanics.
-
-<a id="6">[6]</a> 
-Lira-Loarca, Andrea Lira and Cobos, Manuel and Besio, Giovanni and Baquerizo, Asunción (2021).
-Projected wave climate temporal variability due to climate change.
-Stochastic Environmental Research and Risk Assessment.
-
-<a id="7">[7]</a> 
-Jalón, María L and Baquerizo, Asunción and Losada, Miguel A (2016).
-Optimization at different time scales for the design and management of an oscillating water column system.
-Energy.
-
-<a id="8">[8]</a> 
-López-Ruiz, Alejandro and Bergillos, Rafael J and Lira-Loarca, Andrea and Ortega-Sánchez, Miguel (2018).
-A methodology for the long-term simulation and uncertainty analysis of the operational lifetime performance of wave energy converter arrays.
-Energy.
-
-<a id="9">[9]</a> 
-Lira-Loarca, Andrea and Cobos, Manuel and Losada, Miguel Ángel and Baquerizo, Asunción (2020).
-Storm characterization and simulation for damage evolution models of maritime structures.
-Coastal Engineering.
-
-<a id="10">[10]</a> 
-Cobos, Manuel (2020).
-A model to study the consequences of human actions in the Guadalquivir River Estuary.
-Tesis Univ. Granada.
+— Manuel
