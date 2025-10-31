@@ -3,13 +3,15 @@
 - [ ] Add installation instructions for partial environments on README.md
 - [ ] Include module table and usage examples in README.md
 - [ ] Prepare conda-forge recipe for staged-recipes submission
+- [ ] Link project to readthedocs
 
 📦 pyproject.toml
-- [ ] Update common dependencies (os, time, pathlib, dotenv, typing, logging, datetime) - Line 34
+- [ ] Update common dependencies
 
 🧪 Examples
 - [ ] Run examples and check that works fine
 - [ ] Revise examples, input data, results and output graphics
+- [ ] Reduce size of input data for examples
 
 
 ## 📂 Module-specific TODOs
@@ -20,6 +22,7 @@
 - [ ] Implement additional pre-treatment steps as required - Line 227
 
 ### temporal
+- [ ] Update statistical_fit and its dependencies
 - [ ] Update initialization message in analysis.py - Line 30
 - [ ] Update docstring for simulation function - Line 62 in simulation.py
 - [ ] Update docstring for _summary_ function - Line 441 in simulation.py
@@ -33,8 +36,11 @@
 - [ ] Modify function for storm separation (should not fill gaps) - Line 1025 in analysis.py
 - [ ] Remove temporary fix for calm period indices (waiting for Pedro's fix) - Line 1124 in analysis.py
 - [ ] Modify for more refined and understandable version - Line 1527 in statistical_fit.py
+- [ ] Update reconstruction methods of classification "rbf-multiquadric", "rbf-inverse", "rbf-gaussian", 
+        "rbf-linear", "rbf-cubic", "rbf-quintic", "rbf-thin_plate",
+        "gp-rbf", "gp-exponential", "gp-quadratic", "gp-white".
 
-### utils
+### common
 - [ ] Implement nearest neighbor function separately - Line 361 in read.py
 - [ ] Change implementation for more than one variable in dataframe conversion - Line 362 in read.py
 - [ ] Enable multi-page reading - Line 707 in read.py
@@ -48,3 +54,5 @@
 - [ ] Change hardcoded value 51 to a target value - Line 1352 in auxiliar.py
 
 
+### spectral
+- [ ] Reduce harmonic analysis and reconstruction using pyTMD
