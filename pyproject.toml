@@ -69,7 +69,7 @@ download = [
 ]
 examples = ["ipykernel"]
 spatial = ["folium"]
-spatiotemporal = ["pymcdm"]
+spatiotemporal = ["pymcdm", "glob2"]
 spectral = ["pytmd", "utide"]
 all = [
     "earthengine-api", # download
@@ -84,6 +84,7 @@ all = [
     "ipykernel", # examples
     "folium", # spatial
     "pymcdm", # spatiotemporal
+    "glob2",
     "pytmd", # spectral
 ]
 
