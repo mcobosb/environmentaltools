@@ -1,0 +1,3 @@
+sphinx
+sphinx-rtd-theme
+-e .  # For installing the package in editable mode
