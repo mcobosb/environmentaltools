@@ -85,6 +85,7 @@ all = [
     "folium", # spatial
     "pymcdm", # spatiotemporal
     "glob2",
+    "scikit-image",
     "pytmd", # spectral
 ]
 
