@@ -104,23 +104,75 @@ studies.
 
 .. currentmodule:: environmentaltools.spatiotemporal.indicators
 
+Basic Indicators
+~~~~~~~~~~~~~~~~
+
 .. autosummary::
    :toctree: _autosummary
 
    fractional_exceedance_area
    mean_exceedance_over_total_area
-   compute_all_indicators_and_plot
-
-Advanced Indicators
-~~~~~~~~~~~~~~~~~~~
-
-.. autosummary::
-   :toctree: _autosummary
-
    mean_excess_over_total_area
    mean_exceedance_over_exceedance_area
    mean_excess_over_exceedance_area
    exceedance_to_nonexceedance_ratio
+   compute_all_indicators_and_plot
+
+Spatiotemporal Extent Indicators
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   mean_presence_boundary
+   maximum_influence_extent
+   threshold_exceedance_frequency
+   permanently_affected_zone
+   mean_representative_value
+
+Extreme Value and Risk Indicators
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   return_period_extreme_value
+   environmental_risk
+   functional_area_loss
+   critical_boundary_retreat
+
+Spatial Dynamics Indicators
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   spatial_change_rate
+   directional_influence
+   environmental_convergence
+
+Neighborhood Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   neighbourhood_mean
+   neighbourhood_gradient_influence
+   neighbourhood_polarization
+   local_persistence
+
+Multivariate Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   multivariate_neighbourhood_synergy
+   spatiotemporal_coupling
+   multivariate_threshold_exceedance
+   directional_coevolution
+   multivariate_persistence
 
 Multi-Criteria Decision Analysis
 ---------------------------------
