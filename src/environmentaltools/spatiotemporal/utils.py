@@ -239,6 +239,25 @@ def refinement(da_dem, band_, coords):
     return Z
 
 
+
+def spatial_gradient(array_2d, dx=1, dy=1):
+    """
+    Calcula el gradiente espacial de una matriz 2D.
+    
+    Parameters:
+        array_2d (np.ndarray): Mapa 2D (lat, lon)
+        dx, dy (float): Resolución espacial en X e Y
+    
+    Returns:
+        grad_x, grad_y (np.ndarray): Gradientes en X y Y
+    """
+    grad_x = (np.roll(array_2d, -1, axis=1) - np.roll(array_2d, 1, axis=1)) / (2 * dx)
+    grad_y = (np.roll(array_2d, -1, axis=0) - np.roll(array_2d, 1, axis=0)) / (2 * dy)
+    return grad_x, grad_y
+
+
+
+
 def save2GISapp(
     line,
     crs,
