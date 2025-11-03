@@ -96,3 +96,10 @@ Changelog = "https://github.com/environmentaltools/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/environmentaltools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4"
