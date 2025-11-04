@@ -13,32 +13,20 @@ Features:
 """
 
 import datetime
-import logging
 import os
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
+from loguru import logger
 
 # Set HOME environment variable for cross-platform compatibility
 if 'HOME' not in os.environ:
     os.environ['HOME'] = os.path.expanduser("~")
 
 # Optional dependencies for Google Earth Engine
-try:
-    import ee
-    import geemap
-    HAS_GEE = True
-except ImportError:
-    HAS_GEE = False
-    # Create placeholder for type hints
-    class ee:
-        Geometry = Any
-        Image = Any
-        ImageCollection = Any
-    class geemap:
-        pass
+import ee
+import geemap
+HAS_GEE = True
 
-# Set up module logger
-logger = logging.getLogger(__name__)
 
 
 def initialize_earth_engine(project_id: str) -> None:

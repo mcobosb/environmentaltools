@@ -5,64 +5,30 @@ Climate Downscaling Experiment) data from ESGF (Earth System Grid Federation) se
 """
 
 import asyncio
-import logging
 import math
 import os
-import sys
 from pathlib import Path
 
 # Set HOME environment variable for cross-platform compatibility
 if 'HOME' not in os.environ:
     os.environ['HOME'] = os.path.expanduser("~")
 
-import numpy as np
 import pandas as pd
 import requests
 import xarray as xr
 
-# Optional dependencies for CORDEX download
-try:
-    from cdo import Cdo
-    HAS_CDO = True
-except ImportError:
-    HAS_CDO = False
-    Cdo = None
+# Dependencies for CORDEX download
+from cdo import Cdo
 
-try:
-    from configobj import ConfigObj
-    HAS_CONFIGOBJ = True
-except ImportError:
-    HAS_CONFIGOBJ = False
-    ConfigObj = None
+from configobj import ConfigObj
 
-try:
-    from pydap.cas.esgf import setup_session
-    from pyesgf.logon import LogonManager
-    from pyesgf.search import SearchConnection
-    HAS_ESGF = True
-except ImportError:
-    HAS_ESGF = False
-    setup_session = None
-    LogonManager = None
-    SearchConnection = None
+from pydap.cas.esgf import setup_session
+from pyesgf.logon import LogonManager
+from pyesgf.search import SearchConnection
 
-try:
-    from tqdm import tqdm
-    HAS_TQDM = True
-except ImportError:
-    HAS_TQDM = False
-    # Fallback: simple pass-through if tqdm not available
-    def tqdm(iterable, **kwargs):
-        return iterable
+from tqdm import tqdm
+from werkzeug.utils import secure_filename
 
-try:
-    from werkzeug.utils import secure_filename
-    HAS_WERKZEUG = True
-except ImportError:
-    HAS_WERKZEUG = False
-    # Fallback: simple filename sanitization
-    def secure_filename(filename):
-        return "".join(c for c in filename if c.isalnum() or c in "._- ")
 
 from environmentaltools.common import utils
 
@@ -100,9 +66,7 @@ def _validate_esgf_dir() -> None:
             "Please bootstrap your ESGF certificates first."
         )
 
-
-# Set up module logger
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def parse_wget_script_to_queries(file_name: str, output_path: str = "") -> dict:

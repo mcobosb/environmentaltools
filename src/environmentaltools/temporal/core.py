@@ -4,19 +4,11 @@ import warnings
 import numpy as np
 import pandas as pd
 import scipy.stats as st
-import logging
+from loguru import logger
 from environmentaltools.common import utils, read, save
 from scipy.integrate import quad
 from scipy.optimize import differential_evolution, dual_annealing, minimize, shgo
 from sklearn import preprocessing
-
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    level=logging.INFO
-)
 
 warnings.filterwarnings("ignore")
 

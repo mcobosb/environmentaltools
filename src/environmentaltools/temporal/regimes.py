@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 
 import numpy as np
 import pandas as pd
@@ -9,8 +9,6 @@ from scipy.optimize import fsolve
 from scipy.special import gamma
 
 from environmentaltools.common import utils
-
-logger = logging.getLogger(__name__)
 
 
 def _fit_lmom_for_bca(data, tr, func, nyears):

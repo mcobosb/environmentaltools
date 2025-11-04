@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import time
 
@@ -8,13 +7,12 @@ import pandas as pd
 import scipy.stats as st
 from statsmodels.tsa.ar_model import AutoReg as AR
 from statsmodels.tsa.vector_ar.var_model import VAR
+from loguru import logger
 
 from environmentaltools.common import utils, read, save
 from environmentaltools.temporal import core, utils
 from environmentaltools.temporal.classification import class_storm_seasons
 from environmentaltools.temporal.utils import extreme_events
-
-logger = logging.getLogger(__name__)
 
 """This file is part of environmentaltools.
 

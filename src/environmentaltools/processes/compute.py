@@ -8,14 +8,12 @@ import numpy as np
 import pandas as pd
 import scipy.stats as st
 import xarray as xr
-import logging
+from loguru import logger
 from environmentaltools.processes import load, waves, write
 from environmentaltools.spatial.analysis import rotate_coords
 from environmentaltools.common import utils, read, save
 from scipy.interpolate import griddata, interp1d
 from scipy.special import erfc
-
-logger = logging.getLogger(__name__)
 
 
 def create_db(params, data, mesh="global", time_=None, vars_=None, method="nearest"):

@@ -1,12 +1,12 @@
 import json
 import sys
-import logging
 from datetime import timedelta
 from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
 from matplotlib import dates
+from loguru import logger
 
 import xarray as xr
 import rasterio
@@ -16,9 +16,6 @@ from scipy.io import loadmat as ldm
 import PyPDF2
 from tabula import read_pdf
 from environmentaltools.common import utils
-
-
-logger = logging.getLogger(__name__)
 
 def keys_as_int(obj: dict):
     """Convert the keys at reading json file into a dictionary of integers.

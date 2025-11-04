@@ -5,14 +5,12 @@ import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
 import scipy.stats as st
-import logging
 import os
+from loguru import logger
 
 from environmentaltools.temporal import core
 from environmentaltools.temporal.copula import Copula as Copula
 from environmentaltools.common import utils, save
-
-logger = logging.getLogger(__name__)
 
 """This file is part of environmentaltools.
 

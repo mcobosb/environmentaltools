@@ -43,7 +43,6 @@ Example:
     >>> results = marine_copernicus.download_era5_data(config)
 """
 
-import logging
 import os
 import time
 from datetime import datetime
@@ -52,12 +51,9 @@ from typing import Any, Optional
 
 import cdsapi
 import pandas as pd
+from loguru import logger
 
 from environmentaltools.common import read, save
-
-
-# Set up module logger
-logger = logging.getLogger(__name__)
 
 
 class ERA5DataDownloadConfig:
@@ -759,12 +755,6 @@ def download_era5_data(config: dict[str, Any]) -> dict[str, Any]:
     try:
         # Initialize configuration from dictionary
         config_obj = ERA5DataDownloadConfig(config)
-        
-        # Configure logging (use basic logging if not specified in config)
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
         
         logger.info("Starting ERA5 data download and processing workflow")
         

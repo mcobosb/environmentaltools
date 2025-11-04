@@ -18,7 +18,6 @@ oceanographic and environmental applications.
 # Standard library imports
 import datetime
 import importlib.util
-import logging
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 from urllib.request import urlretrieve
@@ -38,13 +37,7 @@ from scipy.stats import chi2
 
 # Local imports
 from environmentaltools.common import utils, save, read
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def lombscargle_periodogram(data, variable, max_period=None, nperiods=5, freq="H"):
