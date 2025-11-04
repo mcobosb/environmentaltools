@@ -199,12 +199,15 @@ allocation based on multiple environmental criteria.
 Raster Analysis
 ---------------
 
-Functions for processing spatiotemporal raster data, including binary matrix generation
-for threshold exceedances, input validation, and NetCDF output creation.
+Functions for processing spatiotemporal raster data, including configuration management,
+binary matrix generation for threshold exceedances, input validation, and NetCDF output creation.
 
 **Capabilities:**
 
+* Configuration file validation and loading
+* Temporal difference analysis for change detection
 * Input validation and preprocessing
+* Post-treatment data preparation and refinement
 * Binary matrix generation for threshold analysis
 * Temporal aggregation (annual, seasonal)
 * NetCDF format output with metadata
@@ -214,7 +217,9 @@ for threshold exceedances, input validation, and NetCDF output creation.
 .. autosummary::
    :toctree: _autosummary
 
+   check_config_file
+   calculate_temporal_differences
    check_inputs
-   pretratement
+   post_treatment
    binary_matrix
-   main
+   analysis
