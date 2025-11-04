@@ -116,7 +116,6 @@ Basic Indicators
    mean_exceedance_over_exceedance_area
    mean_excess_over_exceedance_area
    exceedance_to_nonexceedance_ratio
-   compute_all_indicators_and_plot
 
 Spatiotemporal Extent Indicators
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,77 +218,3 @@ for threshold exceedances, input validation, and NetCDF output creation.
    pretratement
    binary_matrix
    main
-
-Examples
---------
-
-**BME Estimation Workflow**
-
-.. code-block:: python
-
-   import numpy as np
-   from environmentaltools.spatiotemporal import (
-       compute_spatiotemporal_covariance,
-       fit_covariance_model,
-       compute_bme_moments
-   )
-   import scipy.optimize as opt
-
-   # Compute empirical covariance
-   empcov, pairs, dists, distt = compute_spatiotemporal_covariance(
-       dfh, dfs, 
-       slag=np.linspace(0, 100, 20), 
-       tlag=np.linspace(0, 30, 10)
-   )
-
-   # Fit theoretical model
-   result = opt.minimize(
-       fit_covariance_model,
-       x0=[1.0, 20.0, 5.0, 0.1],
-       args=(empcov, [dists, distt], 'exponentialST')
-   )
-
-   # Compute BME moments
-   moments = compute_bme_moments(
-       dfk, dfh, dfs, 
-       'exponentialST', result.x,
-       nmax=[50, 100], 
-       dmax=[100, 30, 3], 
-       order=[1, 1],
-       options=[100, 3, 0.95], 
-       path='./cache', 
-       name='bme_run'
-   )
-
-**Threshold-Based Indicators**
-
-.. code-block:: python
-
-   from environmentaltools.spatiotemporal import (
-       fractional_exceedance_area,
-       mean_excess_over_exceedance_area
-   )
-
-   # Compute exceedance indicators
-   thresholds, fractions = fractional_exceedance_area(data)
-   thresholds, excess = mean_excess_over_exceedance_area(data)
-
-   # Or compute all at once
-   from environmentaltools.spatiotemporal import compute_all_indicators_and_plot
-   compute_all_indicators_and_plot(moments)
-
-**Multi-Criteria Analysis**
-
-.. code-block:: python
-
-   from environmentaltools.spatiotemporal import run_topsis_mcda
-
-   # Run TOPSIS analysis with multiple criteria
-   results = run_topsis_mcda(
-       criteria_layers=['topo.tif', 'landuse.tif', 'distance.tif'],
-       output_dir='./results',
-       weights_methods=['equal', 'entropy', 'ahp']
-   )
-
-
-
