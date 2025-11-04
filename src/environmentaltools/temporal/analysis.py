@@ -197,7 +197,7 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
                 "Dataset has negative values. Check that the chosen distribution functions adequately fit negative values."
             )
 
-    if parameters["type"] == "circular":
+    if (parameters["type"] == "circular") & ("ws_ps" not in parameters.keys()):
         # Transform angles to radian
         df = np.deg2rad(df)
         # Compute the percentile of change between probability models
@@ -213,6 +213,10 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
     parameters["verbose"] = verbose
     # Check that the input dictionary is well defined
     parameters = check_marginal_params(parameters)
+
+    # Transform angles into radians
+    if parameters["type"] == "circular":
+        df[parameters["var"]] = np.deg2rad(df[parameters["var"]])
 
     # Normalized the data using one of the normalization method if it is required
     if parameters["transform"]["make"]:
@@ -542,9 +546,9 @@ def check_marginal_params(param: dict):
     if (not "method" in param["basis_function"]) & param["non_stat_analysis"]:
         raise ValueError("Method is required when non_stat_analysis is True.")
     elif param["non_stat_analysis"]:
-        if param["basis_function"]["no_terms"] == 0:
+        if ((not "no_terms") & (not "periods")) in param["basis_function"].keys():
             raise ValueError(
-                "Number of period higher than zero is required when non_stat_analysis is True."
+                "Number of terms higher than zero or list of periods with more at least one element is required when non_stat_analysis is True."
             )
         elif param["basis_function"]["method"] in [
             "trigonometric",
@@ -759,6 +763,15 @@ def check_marginal_params(param: dict):
         logger.info("{} - Type is set to 'circular'.".format(str(k)))
     else:
         logger.info("{} - Type is set to 'linear'.".format(str(k)))
+    
+    if param["type"] == "circular":
+        for fun_ in param["fun"].values():
+            if fun_.name not in ["vonmises", "wrap_cauchy", "wrap_norm", "norm"]:
+                raise ValueError(
+                    "For circular variables, only vonmises, wrap_cauchy, wrap_norm and norm PMs are allowed. Got {}.".format(
+                        fun_.name
+                    )
+                )
     k += 1
 
     if (any(np.asarray(param["ws_ps"]) > 1) or any(np.asarray(param["ws_ps"]) < 0)) & (
