@@ -10,7 +10,7 @@ from statsmodels.tsa.ar_model import AutoReg as AR
 from statsmodels.tsa.vector_ar.var_model import VAR
 
 from environmentaltools.common import utils, read, save
-from environmentaltools.temporal import core
+from environmentaltools.temporal import core, utils
 from environmentaltools.temporal.classification import class_storm_seasons
 from environmentaltools.temporal.utils import extreme_events
 
@@ -1267,8 +1267,8 @@ def storm_properties(data, cols, info):
 
     # Duration of storm and interarrival time
     cycles, calms = cycles_ini, calms_ini
-    dur_cycles = extremal.events_duration(list(cycles))
-    dur_calms = extremal.events_duration(list(calms))
+    dur_cycles = utils.events_duration(list(cycles))
+    dur_calms = utils.events_duration(list(calms))
 
     dur_cycles = pd.DataFrame(
         dur_cycles.values, index=dur_cycles.index, columns=["dur_storm"]
