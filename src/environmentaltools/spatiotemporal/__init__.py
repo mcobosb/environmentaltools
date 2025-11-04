@@ -137,10 +137,12 @@ from environmentaltools.spatiotemporal.multicriteria import (
 
 # Raster analysis
 from environmentaltools.spatiotemporal.raster import (
+    check_config_file,
     check_inputs,
-    pretratement,
+    post_treatment,
     binary_matrix,
-    main,
+    analysis,
+    calculate_temporal_differences,
 )
 
 __all__ = [
@@ -203,10 +205,12 @@ __all__ = [
     'create_topsis_maps',
     
     # Raster
+    'check_config_file',
     'check_inputs',
-    'pretratement',
+    'post_treatment',
     'binary_matrix',
-    'main',
+    'analysis',
+    'calculate_temporal_differences',
 ]
 
 

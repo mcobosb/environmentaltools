@@ -118,22 +118,20 @@ def calculate_grid_angle_and_create_rotated_mesh(xx, yy, grid_size):
     return X_rotated, Y_rotated, angle
 
 
-def band(da_dem, levels, orientation_):
+def band(data_cube, levels):
     """
-    Create a band mask for DEM data within specified depth/elevation levels.
+    Create a band mask for data_cube within specified depth/elevation levels.
 
-    Creates a mask for areas within the DEM that fall between minimum and maximum
+    Creates a mask for areas within the data_cube that fall between minimum and maximum
     levels, then expands this mask in the specified orientation to create a band
     for further analysis.
 
     Parameters
     ----------
-    da_dem : dict
-        DEM data containing 'x', 'y', and 'z' arrays.
+    data_cube : dict
+        data_cube containing 'x', 'y', and 'z' arrays.
     levels : array-like
         Depth/elevation levels to define the band boundaries.
-    orientation_ : str
-        Band orientation, either "WE" (West-East) or "NS" (North-South).
 
     Returns
     -------
@@ -149,44 +147,41 @@ def band(da_dem, levels, orientation_):
     create a continuous band across the domain.
     """
     # Define level bounds and create initial mask
-    z_ = np.where((da_dem["z"] < levels.max()) & (da_dem["z"] > levels.min()), 1, 0)
+    z_ = np.where((data_cube["z"] < levels.max()) & (data_cube["z"] > levels.min()), 1, 0)
 
     # Debug mode: show band visualization
     if DEBUG_MODE:
         plt.figure()
-        plt.contourf(da_dem["x"], da_dem["y"], z_, levels=2, cmap="RdBu", alpha=0.5)
+        plt.contourf(data_cube["x"], data_cube["y"], z_, levels=2, cmap="RdBu", alpha=0.5)
         plt.axis("equal")
         plt.title("Debug: Band Visualization")
         plt.show()
 
-    # Create extended mask based on orientation
-    mask = np.copy(z_)
-    len_ = 0
-    if orientation_ == "WE":
-        # Extend mask horizontally (West-East)
-        for i in range(da_dem["y"].shape[0]):
-            if np.any(mask[i, :] == 1):
-                mask[i, :] = 1
-                len_ += 1
-    elif orientation_ == "NS":
-        # Extend mask vertically (North-South)
-        for i in range(da_dem["y"].shape[1]):
-            if np.any(mask[:, i] == 1):
-                mask[:, i] = 1
-                len_ += 1
+    # Create extended mask
+    mask = np.zeros_like(z_)
+    len_x, len_y = 0, 0
+    # Extend mask horizontally
+    for i in range(data_cube["y"].shape[0]):
+        if np.any(z_[i, :] == 1):
+            mask[i, :] = 1
+            len_y += 1
+
+    # Filter mask vertically
+    for i in range(data_cube["y"].shape[1]):
+        if np.any(z_[:, i] == 1):
+            indexes = np.where(z_[:, i] == 1)[0]
+            mask[indexes, i] = 1
+            len_x += 1
 
     # Convert to boolean mask and extract coordinates
     band_ = mask == 1
-    xx = da_dem["x"][band_]
-    yy = da_dem["y"][band_]
+    xx = data_cube["x"][band_]
+    yy = data_cube["y"][band_]
 
-    # Reshape coordinates according to orientation
-    if orientation_ == "NS":
-        xx = np.reshape(xx, (-1, len_))
-        yy = np.reshape(yy, (-1, len_))
-    elif orientation_ == "WE":
-        xx = np.reshape(xx, (len_, -1))
-        yy = np.reshape(yy, (len_, -1))
+    # Reshape coordinates
+    xx = np.reshape(xx, (len_x, len_y))
+    yy = np.reshape(yy, (len_x, len_y))
+
 
     return band_, {"X": xx, "Y": yy}
 
@@ -256,80 +251,71 @@ def spatial_gradient(array_2d, dx=1, dy=1):
     return grad_x, grad_y
 
 
-
-
-def save2GISapp(
-    line,
-    crs,
-    beach_name,
-    dir_results_analysis_GIS,
-    dir_results_analysis_app,
-):
-    """
-    Save geometric line data to both GIS and application-specific formats.
-
-    Saves the line geometry to two different formats: GPKG for GIS applications
-    and GeoJSON for web applications, with appropriate coordinate reference system
-    transformations.
-
-    Parameters
-    ----------
-    line : geopandas.GeoDataFrame
-        Line geometry to be saved.
-    crs : str or pyproj.CRS
-        Coordinate reference system for the GIS output.
-    beach_name : str
-        Base name for the output files.
-    dir_results_analysis_GIS : str or Path
-        Directory path for GIS format output (GPKG).
-    dir_results_analysis_app : str or Path
-        Directory path for application format output (GeoJSON).
-
-    Returns
-    -------
-    None
-
-    Notes
-    -----
-    The function automatically converts the CRS to EPSG:4326 for the GeoJSON output
-    to ensure compatibility with web mapping applications.
-    """
-    # Save to GIS format
-    line = line.set_crs(crs)
-    line.to_file(
-        Path(dir_results_analysis_GIS) / beach_name,
-        driver="GPKG",
-        crs=crs,
-        engine="fiona",
-    )
-
-    # Save for web application
-    line = line.to_crs("EPSG:4326")
-    line.to_file(
-        Path(dir_results_analysis_app) / beach_name.replace("gpkg", "geojson"),
-        driver="GeoJSON",
-        crs="EPSG:4326",
-        engine="fiona",
-    )
-
-    return
-
-
 def save_matrix_to_netcdf(data, coordinates, time, info, sim_no, filename):
     import xarray as xr
+    import numpy as np
 
+    # Ensure data is a numpy array
+    if hasattr(data, 'values'):
+        data_array = data.values
+    else:
+        data_array = np.array(data)
+    
+    # Handle different coordinate structures
+    if isinstance(coordinates, dict):
+        # If coordinates is a dictionary (from xarray coords)
+        if 'x' in coordinates and 'y' in coordinates:
+            x_coords = coordinates['x'].values if hasattr(coordinates['x'], 'values') else coordinates['x']
+            y_coords = coordinates['y'].values if hasattr(coordinates['y'], 'values') else coordinates['y']
+        elif 'X' in coordinates and 'Y' in coordinates:
+            x_coords = coordinates['X'].values if hasattr(coordinates['X'], 'values') else coordinates['X']
+            y_coords = coordinates['Y'].values if hasattr(coordinates['Y'], 'values') else coordinates['Y']
+        else:
+            raise ValueError("Coordinates dictionary must contain 'x','y' or 'X','Y' keys")
+    else:
+        # If coordinates is an xarray coordinate object
+        if 'x' in coordinates:
+            x_coords = coordinates['x'].values
+            y_coords = coordinates['y'].values
+        else:
+            raise ValueError("Cannot extract x,y coordinates from provided coordinates object")
+    
+    # Handle time coordinate
+    if hasattr(time, 'values'):
+        time_coords = time.values
+    else:
+        time_coords = time
+    
+    # Determine data shape and coordinate dimensions
+    if data_array.ndim == 3:  # (time, y, x)
+        time_dim, y_dim, x_dim = data_array.shape
+        data_dims = ("time", "y", "x")
+    elif data_array.ndim == 2:  # (y, x) - single time step
+        y_dim, x_dim = data_array.shape
+        data_array = data_array[np.newaxis, :, :]  # Add time dimension
+        data_dims = ("time", "y", "x")
+        time_dim = 1
+    else:
+        raise ValueError(f"Data must be 2D or 3D, got {data_array.ndim}D")
+    
+    # Ensure coordinates match data dimensions
+    if len(x_coords) != x_dim:
+        # Create coordinate arrays if they don't match
+        x_coords = np.linspace(0, x_dim-1, x_dim)
+        y_coords = np.linspace(0, y_dim-1, y_dim)
+    
     # Create dataset
     ds = xr.Dataset(
-        data_vars={"prob": (("time", "dim_x", "dim_y"), data[season])},
+        data_vars={"prob": (data_dims, data_array)},
         coords={
-            "x": (("dim_x", "dim_y"), coordinates["x"]),
-            "y": (("dim_x", "dim_y"), coordinates["y"]),
-            "time": time,
+            "x": ("x", x_coords),
+            "y": ("y", y_coords),
+            "time": ("time", time_coords[:time_dim] if len(time_coords) > time_dim else time_coords),
         },
         attrs={
-            "description": f"Matriz binaria anual ({season}) a partir de promedios mensuales",
-            "stretch": stretch,
-            "sim": str(sim_no).zfill(2),
+            "description": f"Binary matrix annual from monthly averages",
+            "project": info["project"]["name"],
+            "sim": str(sim_no+1).zfill(4),
         },
     )
 
