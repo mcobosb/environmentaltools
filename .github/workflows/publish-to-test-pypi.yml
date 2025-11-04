@@ -63,6 +63,8 @@ jobs:
 
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
+      contents: read
+
 
     steps:
     - name: Download all the dists
