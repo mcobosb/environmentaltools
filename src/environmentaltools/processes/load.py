@@ -64,7 +64,7 @@ def read_cshore(file_, path):
     -----
     CSHORE output file structure:
     
-    - Files named as 'O' + file_.upper() (e.g., 'OBPROF')
+    - Files named as 'O' + ``file_``.upper() (e.g., 'OBPROF')
     - First row contains metadata (number of points for 'bprof')
     - Data is whitespace-delimited
     

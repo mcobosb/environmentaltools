@@ -21,7 +21,8 @@ autodoc_mock_imports = [
     "pytmd",
     "utide",
     "folium",
-    "pymcdm"
+    "pymcdm",
+    "configobj"
 ]
 
 project = "environmentaltools"
