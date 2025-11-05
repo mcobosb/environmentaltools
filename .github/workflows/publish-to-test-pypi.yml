@@ -57,7 +57,7 @@ jobs:
     - build
     runs-on: ubuntu-latest
     environment:
-      name: testpypi
+      name: environmentaltools
       url: https://test.pypi.org/p/environmentaltools
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
