@@ -100,9 +100,11 @@ all = [
 
 [project.urls]
 Homepage = "https://barrier.dinamicambiental.es"
-Documentation = "https://readthedocs.org"
-Repository = "https://github.com/environmentaltools"
-Changelog = "https://github.com/environmentaltools/CHANGELOG.md"
+Documentation = "https://environmentaltools.readthedocs.io/"
+Source = "https://github.com/mcobosb/environmentaltools"
+Tracker = "https://github.com/mcobosb/environmentaltools/issues"
+Repository = "https://github.com/mcobosb/environmentaltools"
+Changelog = "https://github.com/mcobosb/environmentaltools/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/environmentaltools"]
