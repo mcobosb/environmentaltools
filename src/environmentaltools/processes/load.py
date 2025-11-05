@@ -64,7 +64,7 @@ def read_cshore(file_, path):
     -----
     CSHORE output file structure:
     
-    - Files named as 'O' + file\_.upper() (e.g., 'OBPROF')
+    - Files named as 'O' + file_.upper() (e.g., 'OBPROF')
     - First row contains metadata (number of points for 'bprof')
     - Data is whitespace-delimited
     
@@ -308,7 +308,7 @@ def delft_raw_files_point(point, mesh_filename, folder, vars_, nocases, filename
             readed[kline] += data[i]
 
     # Extract numeric values using regex
-    numeric_const_pattern = "[-+]? (?: (?: \d* \. \d+ ) | (?: \d+ \.? ) )(?: [Ee] [+-]? \d+ ) ?"
+    numeric_const_pattern = r"[-+]? (?: (?: \d* \. \d+ ) | (?: \d+ \.? ) )(?: [Ee] [+-]? \d+ ) ?"
     rx = re.compile(numeric_const_pattern, re.VERBOSE)
 
     x, y = rx.findall(readed[0]), rx.findall(readed[1])
@@ -407,7 +407,7 @@ def delft_raw_files(folder, vars_, case_id_):
     """
 
 
-    numeric_const_pattern = "[-+]? (?: (?: \d* \. \d+ ) | (?: \d+ \.? ) )(?: [Ee] [+-]? \d+ ) ?"
+    numeric_const_pattern = r"[-+]? (?: (?: \d* \. \d+ ) | (?: \d+ \.? ) )(?: [Ee] [+-]? \d+ ) ?"
     rx = re.compile(numeric_const_pattern, re.VERBOSE)
 
     

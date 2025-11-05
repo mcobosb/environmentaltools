@@ -3,9 +3,15 @@ sphinx-rtd-theme
 -e .  # For installing the package in editable mode
 
 # Optional dependencies needed for documentation generation
+# Note: Some are mocked in conf.py if they can't be installed
 folium
 scikit-image
-pytmd
-utide
 pymcdm
 glob2
+
+# Mock these if they fail to install
+# pytmd
+# utide 
+# cdo
+# earthengine-api
+# geemap

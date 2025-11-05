@@ -12,7 +12,17 @@ extensions = [
 autosummary_generate = True
 
 # Mock imports for packages that might not be available or require system dependencies
-autodoc_mock_imports = ["cdo", "earthengine-api", "geemap"]
+autodoc_mock_imports = [
+    "cdo", 
+    "earthengine-api", 
+    "geemap", 
+    "skimage", 
+    "pyTMD", 
+    "pytmd",
+    "utide",
+    "folium",
+    "pymcdm"
+]
 
 project = "environmentaltools"
 author = "Manuel Cobos"
