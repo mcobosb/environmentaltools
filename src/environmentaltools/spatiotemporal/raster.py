@@ -438,6 +438,8 @@ def check_inputs(info):
                 logger.error(f"Return period {rp} is not positive.")
                 raise ValueError(f"Return period {rp} is not positive.")
 
+    # TODO: if horizon_times and return_periods are both specified, modify input files accordingly
+
     # Check mesh size to alert about memory usage
     # Get coordinates metadata from NetCDF file
     with xr.open_dataset(info["datacube_filenames"][j]) as ds:
@@ -511,6 +513,7 @@ def post_treatment(info):
 
     # Perform temporal difference analysis across all simulations
     results = calculate_temporal_differences(info)
+    # TODO: log results as needed
 
     # Initialize lists to store min/max values from all simulations
     min_values = []
