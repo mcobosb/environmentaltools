@@ -24,7 +24,11 @@ autodoc_mock_imports = [
     "folium",
     "pymcdm",
     "configobj",
-    "cdsapi"
+    "cdsapi",
+    "pydap",
+    "pyesgf",
+    "werkzeug",
+    "cartopy"
 ]
 
 project = "environmentaltools"

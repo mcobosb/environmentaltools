@@ -75,11 +75,10 @@ spectral = ["pytmd", "utide"]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
-    "folium",
-    "scikit-image", 
-    "cdo",
-    "pytmd",
-    "utide",
+    # Note: Heavy dependencies are mocked in docs/conf.py
+    # to avoid installation issues on ReadTheDocs
+    "tqdm",
+    "glob2"
 ]
 all = [
     "earthengine-api", # download
