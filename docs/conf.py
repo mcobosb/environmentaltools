@@ -11,6 +11,9 @@ extensions = [
 
 autosummary_generate = True
 
+# Mock imports for packages that might not be available or require system dependencies
+autodoc_mock_imports = ["cdo", "earthengine-api", "geemap"]
+
 project = "environmentaltools"
 author = "Manuel Cobos"
 release = "2026.0.1"

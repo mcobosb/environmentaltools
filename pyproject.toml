@@ -72,6 +72,15 @@ examples = ["ipykernel"]
 spatial = ["folium"]
 spatiotemporal = ["pymcdm", "glob2", "scikit-image"]
 spectral = ["pytmd", "utide"]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "folium",
+    "scikit-image", 
+    "cdo",
+    "pytmd",
+    "utide",
+]
 all = [
     "earthengine-api", # download
     "geemap",

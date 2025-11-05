@@ -1,3 +1,11 @@
 sphinx
 sphinx-rtd-theme
 -e .  # For installing the package in editable mode
+
+# Optional dependencies needed for documentation generation
+folium
+scikit-image
+pytmd
+utide
+pymcdm
+glob2
