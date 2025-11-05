@@ -39,7 +39,7 @@ Supported distributions:
 Once installed, make sure the `latex` command is available in your terminal.  
 The system will automatically use LaTeX to render text in figures if `text.usetex = True` is enabled.
 
-The tool is developed by Manuel Cobos (https://github.com/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA)** team of the University of Granada. The GDFA wishes a good experience in learning process. Enjoy it!
+The tool is developed by Manuel Cobos (https://github.com/mcobosb) as part of the **Environmental Fluid Dynamics (GDFA, https://dinamicambiental.es)** team of the University of Granada. The GDFA wishes a good experience in learning process. Enjoy it!
 
 ## Subpackages description
 

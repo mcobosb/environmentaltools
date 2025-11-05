@@ -91,7 +91,7 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://barrier.dinamicaambiental.es"
+Homepage = "https://barrier.dinamicambiental.es"
 Documentation = "https://readthedocs.org"
 Repository = "https://github.com/environmentaltools"
 Changelog = "https://github.com/environmentaltools/CHANGELOG.md"
