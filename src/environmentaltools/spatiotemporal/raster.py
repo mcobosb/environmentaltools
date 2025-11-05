@@ -701,27 +701,12 @@ def analysis(config_path=None):
                     output_filename,
                 )
                 logger.info(f"Saving {output_filename}")
+        
+        post_treatment(info)
 
     return info
 
 
-
-# else:
-#         for return_period in info["return_periods"]:
-#             for horizon_time in info["horizon_times"]:
-#                 # Load levels for return period and horizon time
-#                 df_levels_rp = pd.read_csv(
-#                     f"{info['project']['input_dtm']}/{str(sim_no).zfill(4)}/levels_rp_tH.csv"
-#                 )
-#                 level_values = df_levels_rp.loc[
-#                     : (horizon_time - info["year_ini"]), str(return_period)
-#                 ]
-#                 level = np.max(level_values)
-
-#                 # Get file path for current simulation and date
-#                 file_path = glob.glob(
-#                     info["dtm_filenames"][sim_no] + f"/**{horizon_time}.tif"
-#                 )
 
 #                 # Reading DEM
 #                 data_cube = xr.open_dataset(file_path)
