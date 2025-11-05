@@ -28,7 +28,8 @@ autodoc_mock_imports = [
     "pydap",
     "pyesgf",
     "werkzeug",
-    "cartopy"
+    "cartopy",
+    "timescale"
 ]
 
 project = "environmentaltools"

@@ -27,6 +27,7 @@ glob2
 # Spectral module dependencies (mocked):  
 # - folium (interactive maps)
 # - pymcdm (decision making)
+# - timescale (time conversion utilities)
 
 # Temporal module dependencies (mocked):
 # - pyTMD, pytmd (tidal analysis)
