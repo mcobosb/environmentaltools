@@ -15,6 +15,7 @@ autosummary_generate = True
 autodoc_mock_imports = [
     "cdo", 
     "earthengine-api", 
+    "ee",
     "geemap", 
     "skimage", 
     "pyTMD", 
@@ -22,7 +23,8 @@ autodoc_mock_imports = [
     "utide",
     "folium",
     "pymcdm",
-    "configobj"
+    "configobj",
+    "cdsapi"
 ]
 
 project = "environmentaltools"
