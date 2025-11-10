@@ -1,12 +1,12 @@
 🧩 General
-- [ ] Define pyproject.toml with modular extras
-- [ ] Add installation instructions for partial environments on README.md
-- [ ] Include module table and usage examples in README.md
-- [ ] Prepare conda-forge recipe for staged-recipes submission
-- [ ] Link project to readthedocs
+- [X] Define pyproject.toml with modular extras
+- [X] Add installation instructions for partial environments on README.md
+- [X] Include module table and usage examples in README.md
+- [X] Prepare conda-forge recipe for staged-recipes submission
+- [X] Link project to readthedocs
 
 📦 pyproject.toml
-- [ ] Update common dependencies
+- [X] Update common dependencies
 
 🧪 Examples
 - [ ] Run examples and check that works fine
