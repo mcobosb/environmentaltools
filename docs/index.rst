@@ -20,6 +20,7 @@ team of the University of Granada. The GDFA wishes a good experience in the lear
    usage
    common
    download
+   drone
    graphics
    processes
    spatial

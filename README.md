@@ -9,6 +9,7 @@ It is compound by a list of subpackages that focus on:
 |---------------------------------|----------------------------------------------------------| --------------|-----|
 | environmentaltools.**common**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes** |
 | environmentaltools.**data**         | Download environmental data from various sources (CMEMS) | Stable        | No  |
+| environmentaltools.**drone**        | UAV mission planning and flight data generation          | Under develop | No  |
 | environmentaltools.**examples**     | Full catalog of examples of each package                 | Stable        | No  |
 | environmentaltools.**graphics**     | Visualization tools for environmental data               | Stable        | **Yes** |
 | environmentaltools.**processes**    | Wave modeling and environmental processes                | Stable        | No  |
@@ -45,6 +46,9 @@ The tool is developed by Manuel Cobos (https://github.com/mcobosb) as part of th
 
 ### **data** subpackage
 The *data* subpackage provides tools for downloading environmental data from various online sources. It includes automated functions to access and retrieve data from the **Marine Copernicus Service (CMEMS)**, allowing users to download oceanographic variables (sea surface temperature, currents, wave data, etc.) for specific spatial domains, depth ranges, and time periods. This module simplifies the process of obtaining high-quality environmental data for analysis and modeling purposes.
+
+### **drone** subpackage
+The *drone* subpackage provides comprehensive tools for **unmanned aerial vehicle (UAV) mission planning** and flight data generation for environmental monitoring applications. It includes functions for scan pattern generation, waypoint optimization, flight time calculation, and KMZ mission file creation for DJI aircraft. The module supports photogrammetry surveys, enables efficient coverage of study areas with configurable overlap parameters, and facilitates mission management through automated batching and preview generation. This tool is particularly useful for aerial data collection in coastal, terrestrial, and aquatic environments.
 
 ### **examples** subpackage
 In the *example** folder can be found a list of Jupyter Notebooks. Each one described how to run the code and how to use the main functions included in *environmentaltools*.
