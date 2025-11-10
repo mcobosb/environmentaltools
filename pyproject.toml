@@ -31,77 +31,77 @@ classifiers = [
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
+    "affine",
+    "cartopy",
+    "cmocean",
+    "geopandas",
     "loguru",
-    "python-dotenv",
+    "lxml",
+    "matplotlib",
     "numpy",
     "pandas",
+    "pillow",
+    "pypdf2",
+    "pyproj",
+    "pyshp",
+    "python-dotenv",
+    "rasterio",
+    "requests",
+    "scikit-learn",
     "scipy",
-    "matplotlib",
-    "xarray",
-    "cmocean",
     "seaborn",
     "statsmodels",
-    "windrose",
-    "pillow",
-    "scikit-learn",
-    "cartopy",
-    "rasterio",
-    "lxml",
-    "geopandas",
-    "pyproj",
-    "affine",
-    "pyshp",
-    "pypdf2",
     "tabula-py",
-    "requests",
+    "windrose",
+    "xarray",
 ]
 
 [project.optional-dependencies]
 download = [
-    "earthengine-api",
-    "geemap",
     "cdo",
     "cdsapi",
     "configobj",
-    "pydap",
+    "earthengine-api",
     "esgf-pyclient",
+    "geemap",
+    "pydap",
     "tqdm",
     "werkzeug",
 ]
 examples = ["ipykernel"]
 spatial = ["folium"]
-spatiotemporal = ["pymcdm", "glob2", "scikit-image"]
+spatiotemporal = ["glob2", "pymcdm", "scikit-image"]
 spectral = ["pytmd", "utide"]
 docs = [
+    "glob2",
     "sphinx",
     "sphinx-rtd-theme",
+    "tqdm",
     # Note: Heavy dependencies are mocked in docs/conf.py
     # to avoid installation issues on ReadTheDocs
-    "tqdm",
-    "glob2"
 ]
 all = [
-    "earthengine-api", # download
-    "geemap",
-    "cdo",
+    "cdo", # download
     "cdsapi",
     "configobj",
-    "pydap",
+    "earthengine-api", 
     "esgf-pyclient",
-    "tqdm",
-    "werkzeug",
-    "ipykernel", # examples
     "folium", # spatial
+    "geemap",
+    "glob2", # spatiotemporal
+    "ipykernel", # examples
     "pymcdm", # spatiotemporal
-    "glob2",
-    "scikit-image",
+    "pydap",
     "pytmd", # spectral
+    "scikit-image", # spatiotemporal
+    "tqdm",
+    "utide", # spectral
+    "werkzeug",
 ]
 
 [project.urls]
 Homepage = "https://barrier.dinamicambiental.es"
 Documentation = "https://environmentaltools.readthedocs.io/"
-Source = "https://github.com/mcobosb/environmentaltools"
 Tracker = "https://github.com/mcobosb/environmentaltools/issues"
 Repository = "https://github.com/mcobosb/environmentaltools"
 Changelog = "https://github.com/mcobosb/environmentaltools/CHANGELOG.md"
