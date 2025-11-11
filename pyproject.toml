@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.1.0"
+version = "2026.2.0"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -119,3 +119,6 @@ python_files = ["test_*.py"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4"
+
+# For creating the Documentation
+# sphinx-build -b html docs docs/_build
