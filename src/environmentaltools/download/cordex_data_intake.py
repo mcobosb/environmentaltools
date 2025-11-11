@@ -14,22 +14,13 @@ For more information, see: https://intake-esgf.readthedocs.io/
 """
 
 import os
-import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import xarray as xr
-from loguru import logger
+import intake_esgf
 
-try:
-    import intake_esgf
-except ImportError:
-    intake_esgf = None
-    logger.warning(
-        "⚠️  intake-esgf is not installed. "
-        "Install it with: pip install intake-esgf"
-    )
 
 from configobj import ConfigObj
 from environmentaltools.common import utils

@@ -32,7 +32,9 @@ autodoc_mock_imports = [
     "pyesgf",
     "werkzeug",
     "cartopy",
-    "timescale"
+    "timescale",
+    "loguru",
+    "intake_esgf"
 ]
 
 project = "environmentaltools"

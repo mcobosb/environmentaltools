@@ -53,7 +53,7 @@ import cdsapi
 import pandas as pd
 from loguru import logger
 
-from environmentaltools.common import read, save
+from environmentaltools.common import read
 
 
 class ERA5DataDownloadConfig:
