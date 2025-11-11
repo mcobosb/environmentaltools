@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.2.2"
+version = "2026.2.3"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -124,3 +124,6 @@ pytest = "^7.4"
 # pip install -e . 
 # For creating the Documentation
 # sphinx-build -b html docs docs/_build
+# For publishing in PyPI
+# git tag v2026.X.X
+# git push origin v2026.X.X
