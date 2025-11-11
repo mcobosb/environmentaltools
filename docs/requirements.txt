@@ -9,6 +9,8 @@ xarray
 matplotlib
 tqdm
 glob2
+geopandas
+shapely
 
 # Optional dependencies that may fail - these are mocked in conf.py
 # Download module dependencies (all mocked):

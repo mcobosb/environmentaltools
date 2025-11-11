@@ -44,7 +44,7 @@ Functions for downloading satellite imagery from Google Earth Engine.
    create_sentinel2_collection
    download_image_with_geemap
    download_single_sentinel2_image
-   download_sentinel2_timeseries
+   download_sentinel2_images
 
 Google Maps
 -----------
