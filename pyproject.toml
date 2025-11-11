@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.2.3"
+version = "2026.2.4"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -113,6 +113,21 @@ Changelog = "https://github.com/mcobosb/environmentaltools/CHANGELOG.md"
 [tool.hatch.build.targets.wheel]
 packages = ["src/environmentaltools"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "src/environmentaltools/data",
+  "src/environmentaltools/examples",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Only include these specific patterns if needed
+# Exclude data and examples from wheel
+[tool.hatch.build]
+exclude = [
+  "src/environmentaltools/data",
+  "src/environmentaltools/examples",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -124,6 +139,11 @@ pytest = "^7.4"
 # pip install -e . 
 # For creating the Documentation
 # sphinx-build -b html docs docs/_build
+# Build the package
+# python -m build
+# Local upload to testpypi
+# pip install twine
+# twine upload --repository testpypi dist/* --verbose
 # For publishing in PyPI
 # git tag v2026.X.X
 # git push origin v2026.X.X
