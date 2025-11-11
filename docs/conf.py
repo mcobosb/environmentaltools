@@ -11,6 +11,9 @@ extensions = [
 
 autosummary_generate = True
 
+# Suppress warnings for autosummary-generated files not in toctree
+suppress_warnings = ['toc.not_included']
+
 # Mock imports for packages that might not be available or require system dependencies
 autodoc_mock_imports = [
     "cdo", 
