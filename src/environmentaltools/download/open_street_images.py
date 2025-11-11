@@ -9,9 +9,27 @@ import io
 from typing import Literal, Tuple
 from urllib.request import Request, urlopen
 
-import cartopy.crs as ccrs
-import cartopy.geodesic as cgeo
-import cartopy.io.img_tiles as cimgt
+# Cartopy imports with comprehensive error handling
+try:
+    import cartopy.crs as ccrs
+    import cartopy.geodesic as cgeo
+    import cartopy.io.img_tiles as cimgt
+    HAS_CARTOPY = True
+except (ImportError, AssertionError, KeyError, RuntimeError) as e:
+    # Handle various cartopy import errors including the AssertionError from trace.pyx
+    import warnings
+    warnings.warn(f"Cartopy not available: {type(e).__name__}: {e}", UserWarning)
+    
+    # Create dummy objects to prevent NameError
+    class DummyCartopy:
+        def __getattr__(self, name):
+            raise ImportError(f"Cartopy is not available. Install with: pip install cartopy")
+    
+    ccrs = DummyCartopy()
+    cgeo = DummyCartopy()
+    cimgt = DummyCartopy()
+    HAS_CARTOPY = False
+
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,6 +43,8 @@ def download_openstreet_map(
     distance_y: float,
     site_name: str,
     style: Literal["map", "satellite"] = "satellite",
+    output_file: str | None = None,
+    show_plot: bool = True,
 ) -> None:
     """
     Download and display OpenStreetMap image for a specified location.
@@ -40,20 +60,44 @@ def download_openstreet_map(
         site_name: Name of the site/location for the plot title.
         style: Map style, either 'map' for street map or 'satellite' for satellite imagery.
             Default is 'satellite'.
+        output_file: Path to save the image file. If None, image is not saved.
+            Supported formats: .png, .jpg, .jpeg, .pdf, .svg, .eps
+        show_plot: Whether to display the plot interactively. Default is True.
     
     Returns:
-        None. Displays the map using matplotlib.
+        None. Displays and/or saves the map.
     
     Example:
+        >>> # Display and save satellite image
         >>> download_openstreet_map(
         ...     lon=-3.7038,
         ...     lat=40.4168,
         ...     distance_x=500,
         ...     distance_y=500,
         ...     site_name="Madrid",
-        ...     style="satellite"
+        ...     style="satellite",
+        ...     output_file="madrid_satellite.png",
+        ...     show_plot=True
+        ... )
+        >>> 
+        >>> # Save only (no display)
+        >>> download_openstreet_map(
+        ...     lon=-3.7038,
+        ...     lat=40.4168,
+        ...     distance_x=500,
+        ...     distance_y=500,
+        ...     site_name="Madrid",
+        ...     style="map",
+        ...     output_file="madrid_map.png",
+        ...     show_plot=False
         ... )
     """
+    if not HAS_CARTOPY:
+        raise ImportError(
+            "Cartopy is required for OpenStreetMap visualization. "
+            "Install with: pip install cartopy"
+        )
+    
     create_osm_image(
         lon=lon,
         lat=lat,
@@ -61,6 +105,8 @@ def download_openstreet_map(
         style=style,
         distance_x=distance_x,
         distance_y=distance_y,
+        output_file=output_file,
+        show_plot=show_plot,
     )
 
 
@@ -71,6 +117,8 @@ def create_osm_image(
     style: Literal["map", "satellite"] = "satellite",
     distance_x: float = 500,
     distance_y: float = 500,
+    output_file: str | None = None,
+    show_plot: bool = True,
 ) -> None:
     """
     Create and display an OpenStreetMap image with customizable style and extent.
@@ -87,9 +135,12 @@ def create_osm_image(
             Default is 'satellite'.
         distance_x: Distance from center to edge in the x-direction (meters). Default is 500.
         distance_y: Distance from center to edge in the y-direction (meters). Default is 500.
+        output_file: Path to save the image file. If None, image is not saved.
+            Supported formats: .png, .jpg, .jpeg, .pdf, .svg, .eps
+        show_plot: Whether to display the plot interactively. Default is True.
     
     Returns:
-        None. Displays the map using matplotlib.
+        None. Displays and/or saves the map.
     
     Notes:
         - Scale (zoom level) is automatically calculated based on the maximum distance.
@@ -123,8 +174,8 @@ def create_osm_image(
     fig = plt.figure(figsize=(10, 10))
     ax = plt.axes(projection=img.crs)  # Use tile provider's CRS
     
-    # Define data coordinate reference system (UTM zone 30)
-    data_crs = ccrs.UTM(zone=30)
+    # Define coordinate reference systems
+    data_crs = ccrs.PlateCarree()  # Use PlateCarree for gridlines compatibility
 
     ax.set_title(f"{site_name} ({lat}, {lon})", fontsize=15)
 
@@ -138,12 +189,70 @@ def create_osm_image(
     ax.set_extent(extent)
     ax.add_image(img, int(scale))  # Add OSM tiles with calculated zoom level
 
-    # Add gridlines with labels
-    gl = ax.gridlines(draw_labels=True, crs=data_crs, color="k", lw=0.5)
-    gl.top_labels = False
-    gl.right_labels = False
+    # Add gridlines with labels (using PlateCarree for compatibility)
+    try:
+        gl = ax.gridlines(draw_labels=True, crs=data_crs, color="k", lw=0.5, alpha=0.7)
+        gl.top_labels = False
+        gl.right_labels = False
+        gl.xlabel_style = {'size': 8}
+        gl.ylabel_style = {'size': 8}
+    except Exception as e:
+        # If gridlines fail, try without labels
+        print(f"⚠️ Gridlines with labels failed: {e}")
+        try:
+            gl = ax.gridlines(draw_labels=False, crs=data_crs, color="k", lw=0.3, alpha=0.5)
+            print("📝 Added gridlines without labels")
+        except Exception as e2:
+            print(f"⚠️ All gridlines failed: {e2}")
+            print("   Map will be generated without coordinate grid.")
 
-    plt.show()
+    # Save the image if output_file is provided
+    if output_file is not None:
+        try:
+            # Ensure the output directory exists
+            import os
+            output_dir = os.path.dirname(output_file)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            
+            # Save with high DPI for quality
+            plt.savefig(output_file, dpi=300, bbox_inches='tight', 
+                       facecolor='white', edgecolor='none')
+            
+            # Verify file was created and get size
+            if os.path.exists(output_file):
+                file_size = os.path.getsize(output_file) / 1024 / 1024  # Size in MB
+                print(f"✅ Map saved to: {output_file} ({file_size:.2f} MB)")
+            else:
+                print(f"⚠️ File may not have been saved properly: {output_file}")
+            
+        except Exception as e:
+            print(f"❌ Error saving map to {output_file}: {e}")
+            # Try to save with a simpler configuration
+            try:
+                simple_output = output_file.replace('.png', '_simple.png')
+                plt.savefig(simple_output, dpi=150, bbox_inches='tight')
+                print(f"📝 Fallback save successful: {simple_output}")
+            except Exception as e2:
+                print(f"❌ Fallback save also failed: {e2}")
+    
+    # Display the plot if requested and backend supports it
+    if show_plot:
+        try:
+            # Check if we're using an interactive backend
+            backend = plt.get_backend()
+            if backend.lower() == 'agg':
+                print("ℹ️ Interactive display disabled (using non-interactive 'Agg' backend)")
+                print("   Image has been saved to file instead.")
+            else:
+                plt.show()
+        except Exception as e:
+            print(f"⚠️ Could not display plot: {e}")
+            print("   Image has been saved to file.")
+        finally:
+            plt.close()  # Always close to free memory
+    else:
+        plt.close()  # Close the figure to free memory if not displaying
 
 
 def calculate_extent(

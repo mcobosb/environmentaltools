@@ -52,15 +52,42 @@ def initialize_earth_engine(project_id: str) -> None:
         ee.Initialize(project=project_id)
         logger.info(f"Earth Engine initialized with project: {project_id}")
         return
-    except Exception:
+    except Exception as e:
         logger.info("Authentication required...")
+        
+        # Check for common error types and provide helpful messages
+        error_str = str(e)
+        if "not registered to use Earth Engine" in error_str:
+            logger.error(f"❌ Project '{project_id}' is not registered for Earth Engine")
+            logger.error("📋 To fix this:")
+            logger.error(f"   1. Visit: https://console.cloud.google.com/earth-engine/configuration?project={project_id}")
+            logger.error("   2. Register your project for Earth Engine access")
+            logger.error("   3. See: https://developers.google.com/earth-engine/guides/access")
+            raise RuntimeError(f"Earth Engine project not registered: {project_id}")
+        
+        if "PERMISSION_DENIED" in error_str:
+            logger.error(f"❌ Permission denied for project '{project_id}'")
+            logger.error("📋 To fix this:")
+            logger.error("   1. Check if you have access to this Google Cloud project")
+            logger.error("   2. Ensure Earth Engine API is enabled")
+            logger.error("   3. Run: earthengine authenticate")
+            raise RuntimeError(f"Permission denied for Earth Engine project: {project_id}")
     
-    # If initialization fails, authenticate first
+    # If initialization fails, try authentication first
     try:
+        logger.info("Attempting authentication...")
         ee.Authenticate()
         ee.Initialize(project=project_id)
         logger.info(f"Earth Engine authenticated and initialized: {project_id}")
     except Exception as e:
+        error_str = str(e)
+        if "not registered to use Earth Engine" in error_str:
+            logger.error(f"❌ Project '{project_id}' is not registered for Earth Engine")
+            logger.error("📋 To fix this:")
+            logger.error(f"   1. Visit: https://console.cloud.google.com/earth-engine/configuration?project={project_id}")
+            logger.error("   2. Register your project for Earth Engine access")
+            raise RuntimeError(f"Earth Engine project not registered: {project_id}")
+        
         raise RuntimeError(f"Earth Engine initialization failed: {e}")
 
 
@@ -332,7 +359,7 @@ def download_single_sentinel2_image(
     return download_image_with_geemap(target_image, output_file, study_area, scale)
 
 
-def download_sentinel2_timeseries(
+def download_sentinel2_images(
     config: dict[str, Any]
 ) -> dict[str, int]:
     """Download time series of Sentinel-2 imagery with vegetation indices.
@@ -370,7 +397,7 @@ def download_sentinel2_timeseries(
         ...     'end_date': '2020-12-31',
         ...     'cloud_percentage': 10.0
         ... }
-        >>> results = download_sentinel2_timeseries(config)
+        >>> results = download_sentinel2_images(config)
         >>> print(f"Downloaded {results['successful']} images")
     """
     # Extract configuration

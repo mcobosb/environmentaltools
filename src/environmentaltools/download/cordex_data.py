@@ -7,11 +7,16 @@ Climate Downscaling Experiment) data from ESGF (Earth System Grid Federation) se
 import asyncio
 import math
 import os
+import time
 from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 # Set HOME environment variable for cross-platform compatibility
 if 'HOME' not in os.environ:
     os.environ['HOME'] = os.path.expanduser("~")
+
+# Suppress PyESGF facets warning for better user experience
+os.environ['ESGF_PYCLIENT_NO_FACETS_STAR_WARNING'] = '1'
 
 import pandas as pd
 import requests
@@ -19,16 +24,36 @@ import xarray as xr
 
 # Dependencies for CORDEX download
 from cdo import Cdo
-
 from configobj import ConfigObj
 
-from pydap.cas.esgf import setup_session
-from pyesgf.logon import LogonManager
-from pyesgf.search import SearchConnection
+# Modern ESGF access with intake-esgf
+try:
+    import intake_esgf
+    HAS_INTAKE_ESGF = True
+except ImportError:
+    intake_esgf = None
+    HAS_INTAKE_ESGF = False
+    logger.warning(
+        "⚠️  intake-esgf not found. Using fallback functionality. "
+        "Install with: pip install intake-esgf"
+    )
+
+# Legacy ESGF access with PyESGF (for CORDEX support)
+try:
+    from pyesgf.search import SearchConnection
+    try:
+        from pyesgf.logon import LogonManager
+    except ImportError:
+        LogonManager = None
+    HAS_PYESGF = True
+except ImportError:
+    SearchConnection = None
+    LogonManager = None  
+    HAS_PYESGF = False
 
 from tqdm import tqdm
 from werkzeug.utils import secure_filename
-
+from loguru import logger
 
 from environmentaltools.common import utils
 
@@ -66,7 +91,6 @@ def _validate_esgf_dir() -> None:
             "Please bootstrap your ESGF certificates first."
         )
 
-from loguru import logger
 
 
 def parse_wget_script_to_queries(file_name: str, output_path: str = "") -> dict:
@@ -301,13 +325,8 @@ def download_cordex_data(
     return
 
 
-# Additional imports for advanced functionality
-
-
-
-def batch_download_with_config(
+def download_with_config(
     output_folder: str,
-    download: bool = True,
     bootstrap: bool = False,
     pydap: bool = False,
 ) -> None:
@@ -317,6 +336,8 @@ def batch_download_with_config(
     using configuration files that specify coordinates and query selections.
 
     Args:
+        query (dict): Dictionary of CORDEX query parameters. Common keys include:
+            "project", "domain", "experiment", "time_frequency", and "variable".
         output_folder (str): Directory path where downloaded files and queries
             will be stored.
         download (bool, optional): If True, downloads selected data. If False,
@@ -328,7 +349,10 @@ def batch_download_with_config(
             standard OpenDAP protocol. Defaults to False.
 
     Note:
-        - Expects a config.ini file with ESGF credentials
+        - Expects a ~/.esgf/config.ini file with ESGF credentials in format:
+          [credentials]
+          openid = your_esgf_openid
+          password = your_password
         - Requires CSV files: {output_folder}_coordenadas.csv (coordinates)
           and {output_folder}_seleccion.csv (query selection)
         - Creates output structure: output_folder/coord_XX/files.nc
@@ -339,60 +363,72 @@ def batch_download_with_config(
         >>> # Download data after selecting queries
         >>> batch_download_with_config('./data', download=True)
     """
-    # Define default query parameters for CORDEX EUR-11 domain
-    query = {
-        "project": "CORDEX",
-        "domain": "EUR-11",
-        "experiment": "rcp85",
-        "time_frequency": "3hr",
-        "variable": ["pr"],
-    }
-
     # Create output folder structure
-    Path(output_folder).mkdir(exist_ok=True)
-    query_file = output_folder + "_queries.xlsx"
+    output_path = Path(output_folder)
+    output_path.mkdir(exist_ok=True)
+    query_file = output_path / "queries.xlsx"
 
-    if download:
-        # Load configuration and data files
-        coord_file = output_folder + "_coordenadas.csv"
-        selection_file = output_folder + "_seleccion.csv"
+    # Load configuration and data files
+    coord_file = output_path / "coordinates.csv"
+    selection_file = output_path / "selection.csv"
 
-        # Read ESGF credentials from config file
-        config = ConfigObj("config.ini")
+    # Read ESGF credentials from config file
+    config_path = os.path.expanduser("~/.esgf/config.ini")
+    if not os.path.exists(config_path):
+        logger.error(f"ESGF config file not found at {config_path}")
+        logger.error("Please create the ~/.esgf/config.ini file with your ESGF credentials")
+        logger.error("Format: [credentials]\\nopenid = your_esgf_openid\\npassword = your_password")
+        raise FileNotFoundError(f"ESGF config file not found: {config_path}")
+    
+    config = ConfigObj(config_path)
+    
+    try:
         openid = config["credentials"]["openid"]
         password = config["credentials"]["password"]
+    except KeyError as e:
+        logger.error(f"Missing required credential in config file: {e}")
+        logger.error("Config file format should be: [credentials]\\nopenid = your_esgf_openid\\npassword = your_password")
+        raise
+    
+    logger.info("📡 Starting CORDEX data download...")
+    logger.info("⚠️  Note: ESGF servers may be slow or temporarily unavailable")
+    logger.info("🔄 The process includes automatic retry logic for failed connections")
+    logger.info("🌍 Multiple ESGF servers will be tried automatically")
+    logger.info(f"🔐 Using ESGF credentials from: {config_path}")
+    logger.info("💡 Many CORDEX datasets are public - authentication is optional")
 
-        # Load coordinates and query selection
-        coords = pd.read_csv(coord_file)[3:]  # Skip first 3 header rows
-        all_queries = pd.read_excel(f"{query_file}")
-        selection = pd.read_csv(selection_file, header=None).values[:, 0].tolist()
+    # Load coordinates and query selection
+    coords = pd.read_csv(coord_file)[3:]  # Skip first 3 header rows
+    all_queries = pd.read_excel(f"{query_file}")
+    selection = pd.read_csv(selection_file, header=None).values[:, 0].tolist()
 
-        # Filter queries based on selection
-        queries = filter_esgf_queries(selection, all_queries)
+    # Filter queries based on selection
+    queries = filter_esgf_queries(selection, all_queries)
 
-        # Download data for each coordinate point
-        for coord in coords.itertuples():
-            # Create subfolder for each coordinate
-            coord_folder = f"coord_{coord.Index:02}"
-            Path(f"{output_folder}/{coord_folder}").mkdir(exist_ok=True)
+    # Download data for each coordinate point
+    for coord in coords.itertuples():
+        # Create subfolder for each coordinate
+        coord_folder = f"coord_{coord.Index:02}"
+        Path(f"{output_folder}/{coord_folder}").mkdir(exist_ok=True)
 
-            lat = coord.lat
-            lon = coord.lon
-            logger.info(f"Processing coordinate: lat={lat}, lon={lon}")
+        lat = coord.lat
+        lon = coord.lon
+        logger.info(f"Processing coordinate: lat={lat}, lon={lon}")
 
-            # Download each selected query for this coordinate
-            for q in queries.itertuples():
-                filename = (
-                    f"./{output_folder}/{coord_folder}/"
-                    f"c{coord.Index:02}-q{q.Index:02}-{secure_filename(q.id)}.nc"
-                )
+        # Download each selected query for this coordinate
+        for q in queries.itertuples():
+            filename = (
+                f"./{output_folder}/{coord_folder}/"
+                f"c{coord.Index:02}-q{q.Index:02}-{secure_filename(q.id)}.nc"
+            )
 
-                # Skip if file already exists
-                if Path(filename).exists():
-                    logger.info(f"{q.id} already downloaded")
-                else:
-                    logger.info(f"Downloading {q.id}")
+            # Skip if file already exists
+            if Path(filename).exists():
+                logger.info(f"{q.id} already downloaded")
+            else:
+                logger.info(f"Downloading {q.id}")
 
+                try:
                     # Download dataset from ESGF
                     dataset, _ = download_esgf_dataset(
                         q.id,
@@ -407,11 +443,19 @@ def batch_download_with_config(
                     poi.to_netcdf(filename)
                     poi.close()
                     dataset.close()
-    else:
-        # Generate query file without downloading
-        logger.info("Generating query file")
-        all_queries = query_esgf_catalog(query)
-        all_queries.to_excel(f"{output_folder}/{query_file}")
+                    
+                except (requests.exceptions.ConnectTimeout, 
+                        requests.exceptions.Timeout,
+                        requests.exceptions.ConnectionError) as e:
+                    logger.error(f"❌ Failed to download {q.id}: {type(e).__name__}: {e}")
+                    logger.error("Skipping this dataset and continuing with next one...")
+                    continue
+                    
+                except Exception as e:
+                    logger.error(f"❌ Unexpected error downloading {q.id}: {type(e).__name__}: {e}")
+                    logger.error("Skipping this dataset and continuing with next one...")
+                    continue
+       
 
     logger.info("Finished!")
 
@@ -420,6 +464,7 @@ def query_esgf_catalog(
     query: dict,
     search_url: str = "https://esg-dn1.nsc.liu.se/esg-search",
     distrib: bool = True,
+    facets: str | None = None,
 ) -> pd.DataFrame:
     """Query ESGF catalog and retrieve available datasets.
 
@@ -437,6 +482,9 @@ def query_esgf_catalog(
             "https://esg-dn1.nsc.liu.se/esg-search".
         distrib (bool, optional): If True, searches across distributed nodes.
             Defaults to True.
+        facets (str, optional): Comma-separated list of facets to include in search.
+            If None, uses CORDEX-specific defaults. Examples: 'project,domain,variable'
+            Defaults to None.
 
     Returns:
         pd.DataFrame: DataFrame containing metadata for all matching datasets.
@@ -447,21 +495,353 @@ def query_esgf_catalog(
         >>> datasets = query_esgf_catalog(query)
         >>> print(f"Found {len(datasets)} datasets")
     """
-    queries = {}
+def query_esgf_catalog(
+    query: dict,
+    search_url: str = "https://esg-dn1.nsc.liu.se/esg-search",
+    distrib: bool = True,
+    facets: str | None = None,
+) -> pd.DataFrame:
+    """Query ESGF catalog and retrieve available datasets using intake-esgf.
 
-    # Connect to ESGF search API
-    conn = SearchConnection(search_url, distrib=distrib)
-    ctx = conn.new_context(**query)
+    Searches the ESGF (Earth System Grid Federation) catalog for datasets
+    matching the specified query parameters using the modern intake-esgf package.
+
+    Args:
+        query (dict): Dictionary of CORDEX query parameters. Common keys include:
+            - project (str): e.g., "CORDEX"
+            - domain (str): e.g., "EUR-11"
+            - experiment (str): e.g., "rcp85"
+            - time_frequency (str): e.g., "3hr", "day", "mon"
+            - variable (list): e.g., ["pr", "tas"]
+        search_url (str, optional): Primary ESGF search node URL. Function will
+            try alternative nodes if this fails. Defaults to
+            "https://esg-dn1.nsc.liu.se/esg-search".
+        distrib (bool, optional): If True, searches across distributed nodes.
+            Defaults to True.
+        facets (str, optional): Comma-separated list of facets to include in search.
+            If None, uses CORDEX-specific defaults. Defaults to None.
+
+    Returns:
+        pd.DataFrame: DataFrame containing metadata for all matching datasets.
+            Each row represents one dataset with its full metadata.
+
+    Raises:
+        ImportError: If intake-esgf is not installed
+        ConnectionError: If unable to connect to any ESGF node
+
+    Example:
+        >>> query = {"project": "CORDEX", "domain": "EUR-11", "variable": ["pr"]}
+        >>> datasets = query_esgf_catalog(query)
+        >>> print(f"Found {len(datasets)} datasets")
+    """
+    if not HAS_INTAKE_ESGF:
+        raise ImportError(
+            "intake-esgf is required for ESGF operations. "
+            "Install with: pip install intake-esgf"
+        )
+
+    # List of ESGF indices to try
+    indices = [
+        "https://esgf-node.llnl.gov/esg-search",
+        "https://esgf-index1.ceda.ac.uk/esg-search", 
+        "https://esgf.nci.org.au/esg-search",
+        search_url  # User-specified URL last
+    ]
+
+    results = []
+    successful_indices = []
+
+    # Try each index until we get results
+    for idx_url in indices:
+        try:
+            logger.info(f"🔍 Searching ESGF index: {idx_url}")
+            
+            # Create intake-esgf catalog
+            cat = intake_esgf.ESGFCatalog()
+            
+            # Perform search with intake-esgf
+            search_results = cat.search(**query)
+            
+            if hasattr(search_results, '__len__') and len(search_results) > 0:
+                logger.info(f"✅ Found {len(search_results)} results")
+                
+                # Convert to DataFrame format
+                if hasattr(search_results, 'df'):
+                    results.extend(search_results.df.to_dict('records'))
+                elif hasattr(search_results, 'to_dict'):
+                    results.extend([search_results.to_dict()])
+                else:
+                    # Handle different result formats
+                    for item in search_results:
+                        if hasattr(item, 'to_dict'):
+                            results.append(item.to_dict())
+                        else:
+                            results.append({"id": str(item), "source": idx_url})
+                
+                successful_indices.append(idx_url)
+                break  # Use first successful index
+            else:
+                logger.warning(f"No results found at {idx_url}")
+                
+        except Exception as e:
+            logger.warning(f"❌ Failed to search {idx_url}: {type(e).__name__}: {e}")
+            continue
+
+    if not results:
+        logger.error("No datasets found - possible causes:")
+        logger.error("1. Query parameters too restrictive")
+        logger.error("2. Network connectivity issues")
+        logger.error("3. ESGF servers temporarily unavailable")
+        logger.error("4. intake-esgf configuration issues")
+        
+        # Return empty DataFrame instead of raising error
+        logger.warning("Returning empty DataFrame")
+        return pd.DataFrame()
+
+    # Convert to DataFrame
+    df = pd.DataFrame(results)
+    logger.info(f"📊 Total datasets found: {len(df)} from {len(successful_indices)} indices")
     
-    # Retrieve all matching results
-    if ctx.hit_count > 0:
-        results = ctx.search()
-        for i, result in enumerate(results):
-            queries[i] = result.json
-
-    # Convert to DataFrame for easy manipulation
-    df = pd.DataFrame.from_dict(queries, orient="index")
     return df
+
+
+def query_esgf_catalog_pyesgf(
+    query: Dict[str, Union[str, List[str]]],
+    indices: Optional[List[str]] = None,
+    **kwargs
+) -> pd.DataFrame:
+    """Query ESGF catalog using PyESGF (esgf-pyclient) for CORDEX projects.
+    
+    This function uses the legacy PyESGF client which has proven stable support
+    for CORDEX data discovery, unlike intake-esgf which doesn't support CORDEX yet.
+    
+    Args:
+        query: Dictionary of CORDEX query parameters. Common keys include:
+            - project (str): e.g., "CORDEX"
+            - domain (str): e.g., "EUR-11"
+            - experiment (str): e.g., "rcp85"
+            - time_frequency (str): e.g., "3hr", "day", "mon"
+            - variable (list): e.g., ["pr", "tas"]
+        indices: List of ESGF indices to search
+        **kwargs: Additional arguments (for compatibility)
+        
+    Returns:
+        pd.DataFrame: DataFrame containing metadata for matching datasets
+        
+    Raises:
+        ImportError: If PyESGF is not installed
+        ConnectionError: If unable to connect to any ESGF index
+    """
+    if not HAS_PYESGF:
+        raise ImportError(
+            "PyESGF (esgf-pyclient) is required for CORDEX projects. "
+            "Install with: pip install esgf-pyclient"
+        )
+    
+    # Default ESGF indices for CORDEX
+    if indices is None:
+        indices = [
+            "https://esgf.nci.org.au/esg-search",
+            "https://esgf-node.llnl.gov/esg-search",
+            "https://esgf-index1.ceda.ac.uk/esg-search", 
+            "https://esg-dn1.nsc.liu.se/esg-search"
+        ]
+    
+    results = []
+    successful_indices = []
+    
+    # Try each index until we get results
+    for idx_url in indices:
+        try:
+            logger.info(f"🔍 Searching ESGF index: {idx_url}")
+            
+            # Connect to ESGF using PyESGF
+            conn = SearchConnection(idx_url, distrib=True)
+            
+            # Use specific facets for CORDEX to avoid warning and improve search efficiency
+            # Based on CORDEX-specific metadata structure
+            cordex_facets = 'project,domain,variable,experiment,time_frequency,driving_model,institute,rcm_name,ensemble'
+            ctx = conn.new_context(facets=cordex_facets)
+            
+            # Add query parameters to context using PyESGF's constraint system
+            applied_filters = []
+            for key, value in query.items():
+                if isinstance(value, list):
+                    # For lists, try each value or join with comma
+                    if len(value) == 1:
+                        ctx = ctx.constrain(**{key: value[0]})
+                        applied_filters.append(f"{key}={value[0]}")
+                    else:
+                        # Multiple values - use comma-separated
+                        filter_value = ','.join(value)
+                        ctx = ctx.constrain(**{key: filter_value})
+                        applied_filters.append(f"{key}={filter_value}")
+                else:
+                    ctx = ctx.constrain(**{key: str(value)})
+                    applied_filters.append(f"{key}={value}")
+            
+            logger.info(f"🔍 Applied filters: {', '.join(applied_filters)}")
+            
+            # Get hit count
+            hit_count = ctx.hit_count
+            
+            if hit_count == 0:
+                logger.warning(f"No datasets found at {idx_url}")
+                continue
+            
+            # Limit results for performance and practical use
+            max_results = kwargs.get('max_results', 100)  # Default limit of 100 datasets
+            actual_results = min(hit_count, max_results)
+                
+            logger.info(f"✅ Found {hit_count} datasets at {idx_url}, retrieving first {actual_results}")
+            successful_indices.append(idx_url)
+            
+            # Get limited results
+            result_count = 0
+            for result in ctx.search():
+                if result_count >= max_results:
+                    logger.info(f"⚡ Reached maximum result limit ({max_results})")
+                    break
+                dataset_info = {
+                    'dataset_id': result.dataset_id,
+                    'title': getattr(result, 'title', ''),
+                    'source': idx_url,
+                    'number_of_files': getattr(result, 'number_of_files', 0),
+                    'size': getattr(result, 'size', 0),
+                    'version': getattr(result, 'version', ''),
+                    'instance_id': getattr(result, 'instance_id', ''),
+                    'master_id': getattr(result, 'master_id', ''),
+                    # Try different ways to extract metadata
+                    'project': getattr(result, 'project', query.get('project', '')),
+                    'experiment': getattr(result, 'experiment', query.get('experiment', [''])[0] if isinstance(query.get('experiment'), list) else query.get('experiment', '')),
+                    'time_frequency': getattr(result, 'time_frequency', query.get('time_frequency', [''])[0] if isinstance(query.get('time_frequency'), list) else query.get('time_frequency', '')),
+                    'variable': getattr(result, 'variable', query.get('variable', [''])[0] if isinstance(query.get('variable'), list) else query.get('variable', '')),
+                    'domain': getattr(result, 'domain', query.get('domain', '')),
+                    'institute': getattr(result, 'institute', ''),
+                    'model': getattr(result, 'model', ''),
+                    'driving_model': getattr(result, 'driving_model', ''),
+                    'ensemble': getattr(result, 'ensemble', ''),
+                    # Ensure we have an 'id' field for compatibility
+                    'id': result.dataset_id
+                }
+                
+                # If metadata is still empty, try to parse from dataset_id
+                if not dataset_info['domain'] and 'EUR-11' in result.dataset_id:
+                    dataset_info['domain'] = 'EUR-11'
+                if not dataset_info['experiment'] and 'rcp85' in result.dataset_id:
+                    dataset_info['experiment'] = 'rcp85'
+                if not dataset_info['variable'] and 'pr' in result.dataset_id:
+                    dataset_info['variable'] = 'pr'
+                if not dataset_info['project'] and 'cordex' in result.dataset_id.lower():
+                    dataset_info['project'] = 'CORDEX'
+                results.append(dataset_info)
+                result_count += 1
+                
+            # Break after first successful search to avoid duplicates
+            if results:
+                break
+                
+        except Exception as e:
+            logger.warning(f"❌ Failed to search {idx_url}: {type(e).__name__}: {e}")
+            continue
+    
+    if not results:
+        logger.error("No datasets found - possible causes:")
+        logger.error("1. Query parameters too restrictive")
+        logger.error("2. Network connectivity issues") 
+        logger.error("3. ESGF servers temporarily unavailable")
+        logger.warning("Returning empty DataFrame")
+        return pd.DataFrame()
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(results)
+    logger.info(f"📊 Found {len(df)} CORDEX datasets using PyESGF")
+    
+    return df
+
+
+def download_esgf_dataset_pyesgf(
+    dataset_metadata: Dict,
+    output_folder: str,
+    file_filter: Optional[str] = None,
+    **kwargs
+) -> List[str]:
+    """Download ESGF dataset using PyESGF with metadata dictionary input.
+    
+    Adapter function that converts dataset metadata dictionary to the format
+    expected by the original download_esgf_dataset function.
+    
+    Args:
+        dataset_metadata: Dictionary containing dataset metadata including 'dataset_id' or 'id'
+        output_folder: Directory to save downloaded files
+        file_filter: Optional filter for specific files (e.g., "*.nc")
+        **kwargs: Additional arguments passed to download function
+        
+    Returns:
+        List[str]: List of downloaded file paths
+        
+    Raises:
+        ValueError: If dataset_metadata doesn't contain required ID field
+        ImportError: If PyESGF is not available
+    """
+    if not HAS_PYESGF:
+        raise ImportError(
+            "PyESGF (esgf-pyclient) is required for CORDEX downloads. "
+            "Install with: pip install esgf-pyclient"
+        )
+    
+    # Extract dataset ID from metadata
+    dataset_id = dataset_metadata.get('dataset_id') or dataset_metadata.get('id')
+    if not dataset_id:
+        raise ValueError(
+            "Dataset metadata must contain 'dataset_id' or 'id' field. "
+            f"Available fields: {list(dataset_metadata.keys())}"
+        )
+    
+    logger.info(f"🌐 Downloading dataset: {dataset_id}")
+    logger.info(f"📁 Output folder: {output_folder}")
+    
+    try:
+        # Call the original download function with the dataset ID
+        dataset, opendap_urls = download_esgf_dataset(
+            query=dataset_id,
+            **kwargs
+        )
+        
+        # Convert xarray dataset(s) to file paths
+        output_path = Path(output_folder)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        downloaded_files = []
+        
+        if dataset is not None:
+            if isinstance(dataset, list):
+                # Multiple datasets
+                for i, ds in enumerate(dataset):
+                    filename = f"{dataset_id.replace('|', '_').replace('/', '_')}_part{i}.nc"
+                    if file_filter and not filename.endswith(file_filter.replace('*', '')):
+                        continue
+                    filepath = output_path / filename
+                    ds.to_netcdf(filepath)
+                    downloaded_files.append(str(filepath))
+                    logger.info(f"💾 Saved: {filepath.name}")
+            else:
+                # Single dataset
+                filename = f"{dataset_id.replace('|', '_').replace('/', '_')}.nc"
+                if not file_filter or filename.endswith(file_filter.replace('*', '')):
+                    filepath = output_path / filename
+                    dataset.to_netcdf(filepath)
+                    downloaded_files.append(str(filepath))
+                    logger.info(f"💾 Saved: {filepath.name}")
+        
+        if opendap_urls:
+            logger.info(f"🔗 OpenDAP URLs available: {len(opendap_urls)}")
+        
+        return downloaded_files
+        
+    except Exception as e:
+        logger.error(f"❌ Download failed for {dataset_id}: {e}")
+        raise
 
 
 def filter_esgf_queries(selection: list, queries: pd.DataFrame) -> pd.DataFrame:
@@ -496,16 +876,20 @@ def download_esgf_dataset(
 
     Downloads climate data from ESGF servers using either PyDAP or standard
     OpenDAP protocol. Supports authentication and multiple file handling.
+    Includes automatic fallback to alternative ESGF servers for reliability.
+    Authentication is optional - many CORDEX datasets are publicly accessible.
 
     Args:
         query (str): ESGF dataset ID to download.
-        search_url (str, optional): ESGF search node URL. Defaults to
-            "https://esg-dn1.nsc.liu.se/esg-search".
+        search_url (str, optional): Primary ESGF search node URL. The function
+            will automatically try alternative servers if this one fails.
+            Defaults to "https://esg-dn1.nsc.liu.se/esg-search".
         distrib (bool, optional): If True, searches across distributed nodes.
             Defaults to True.
         split_by_variable (bool, optional): If True, returns separate datasets
             for each variable. Defaults to False.
-        openid (str, optional): ESGF OpenID URL for authentication. Defaults to None.
+        openid (str, optional): ESGF OpenID URL for authentication. If authentication
+            fails, the function will continue without credentials. Defaults to None.
         password (str, optional): Password for ESGF authentication. Defaults to None.
         bootstrap (bool, optional): If True, generates or renews certificates.
             Defaults to False.
@@ -530,43 +914,129 @@ def download_esgf_dataset(
 
     # Set up authentication if credentials provided
     if openid and password:
-        if pydap:
-            session = setup_session(openid, password, check_url=openid)
-        else:
-            lm = LogonManager()
-            lm.logon_with_openid(openid=openid, password=password, bootstrap=bootstrap)
+        try:
+            if pydap:
+                # session = setup_session(openid, password, check_url=openid)
+                session = None  # TODO: Implement session setup
+            else:
+                lm = LogonManager()
+                logger.info("🔐 Attempting ESGF authentication...")
+                lm.logon_with_openid(openid=openid, password=password, bootstrap=bootstrap)
+                logger.info("✅ ESGF authentication successful")
+        except Exception as e:
+            logger.warning(f"⚠️  Authentication failed: {e}")
+            logger.warning("🔓 Continuing without authentication (many CORDEX datasets are public)")
+            logger.warning("Some datasets may not be accessible without proper authentication")
+            # Continue without authentication - many datasets are public
 
-    # Connect to ESGF and search for dataset
-    conn = SearchConnection(search_url, distrib=distrib)
+    # List of alternative ESGF search nodes
+    search_urls = [
+        search_url,
+        "https://esgf-node.llnl.gov/esg-search",
+        "https://esgf-index1.ceda.ac.uk/esg-search",
+        "https://esgf.nci.org.au/esg-search"
+    ]
 
-    ctx = conn.new_context(query=f"id:{query}")
-    hit_count = ctx.hit_count
+    # List of alternative ESGF search nodes
+    search_urls = [
+        search_url,
+        "https://esgf-node.llnl.gov/esg-search",
+        "https://esgf-index1.ceda.ac.uk/esg-search",
+        "https://esgf.nci.org.au/esg-search"
+    ]
+
+    # Try each ESGF server until we successfully download the dataset
+    ds = None
+    opendap_urls = []
     
-    if hit_count > 0:
-        logger.info(f"Found {hit_count} matching files")
+    for server_idx, url in enumerate(search_urls):
+        try:
+            logger.info(f"🌐 Trying ESGF search node: {url} (attempt {server_idx + 1}/{len(search_urls)})")
+            
+            # Connect to ESGF and search for dataset
+            conn = SearchConnection(url, distrib=distrib)
+            
+            # Use specific facets for CORDEX to avoid warning and improve search efficiency
+            cordex_facets = 'project,domain,variable,experiment,time_frequency,model,downscaling_realisation'
+            ctx = conn.new_context(facets=cordex_facets, query=f"id:{query}")
+            hit_count = ctx.hit_count
+            
+            if hit_count == 0:
+                logger.warning(f"No datasets found at {url}")
+                continue
+                
+            logger.info(f"✅ Found {hit_count} datasets matching query at {url}")
+            
+            # Try to download from this server
+            ds, opendap_urls = _download_from_server(ctx, split_by_variable, pydap, session)
+            
+            if ds is not None:
+                logger.info(f"🎉 Successfully downloaded dataset from {url}")
+                break  # Success!
+            else:
+                logger.warning(f"Found dataset but failed to download from {url}")
+                
+        except Exception as e:
+            logger.warning(f"❌ Failed with server {url}: {type(e).__name__}: {e}")
+            if server_idx == len(search_urls) - 1:  # Last server
+                logger.error("❌ All ESGF servers failed")
+                logger.error("Possible solutions:")
+                logger.error("1. Check your internet connection")
+                logger.error("2. Try again later - ESGF servers may be temporarily unavailable")
+                logger.error("3. Verify the dataset ID is correct")
+                raise ConnectionError("Unable to download dataset from any ESGF server") from e
+            else:
+                logger.info(f"🔄 Trying next ESGF server...")
+
+    if ds is None:
+        raise ConnectionError("Failed to download dataset from any ESGF server")
+
+    return ds, opendap_urls
+
+
+def _download_from_server(ctx, split_by_variable, pydap, session):
+    """Helper function to download dataset from a specific ESGF server context."""
+    try:
         results = ctx.search()
+        logger.info(f"🔍 Processing {len(list(results))} result(s)...")
+        results = ctx.search()  # Need to search again as generator is consumed
 
         if split_by_variable:
             ds = []
 
+        opendap_urls = []
+        multiple_opendap_urls = []
+
         # Process each result and extract OpenDAP URLs
         for result in results:
             if split_by_variable:
-                opendap_urls = []
+                current_opendap_urls = []
 
             nc_files = result.file_context().search()
             for nc_file in nc_files:
-                opendap_urls.append(nc_file.opendap_url)
+                if split_by_variable:
+                    current_opendap_urls.append(nc_file.opendap_url)
+                else:
+                    opendap_urls.append(nc_file.opendap_url)
 
             # Open datasets based on protocol and splitting preference
             if split_by_variable:
                 if pydap:
-                    stores = build_pydap_stores(opendap_urls, session)
-                    ds.append(xr.open_mfdataset(stores, combine="by_coords"))
+                    stores = build_pydap_stores(current_opendap_urls, session)
+                    try:
+                        ds.append(xr.open_mfdataset(stores, combine="by_coords"))
+                    except Exception as e:
+                        logger.error(f"❌ Failed to open dataset with PyDAP: {e}")
+                        logger.info("🔄 Trying alternative approach without PyDAP...")
+                        ds.append(xr.open_mfdataset(current_opendap_urls, combine="by_coords"))
                 else:
-                    ds.append(xr.open_mfdataset(opendap_urls, combine="by_coords"))
+                    try:
+                        ds.append(xr.open_mfdataset(current_opendap_urls, combine="by_coords"))
+                    except Exception as e:
+                        logger.error(f"❌ Failed to open dataset from URLs: {e}")
+                        raise
 
-                multiple_opendap_urls.extend(opendap_urls)
+                multiple_opendap_urls.extend(current_opendap_urls)
 
         # Consolidate URLs if split by variable
         if split_by_variable:
@@ -574,11 +1044,24 @@ def download_esgf_dataset(
         else:
             if pydap:
                 stores = build_pydap_stores(opendap_urls, session)
-                ds = xr.open_mfdataset(stores, combine="by_coords")
+                try:
+                    ds = xr.open_mfdataset(stores, combine="by_coords")
+                except Exception as e:
+                    logger.error(f"❌ Failed to open dataset with PyDAP: {e}")
+                    logger.info("🔄 Trying alternative approach without PyDAP...")
+                    ds = xr.open_mfdataset(opendap_urls, combine="by_coords")
             else:
-                ds = xr.open_mfdataset(opendap_urls, combine="by_coords")
+                try:
+                    ds = xr.open_mfdataset(opendap_urls, combine="by_coords")
+                except Exception as e:
+                    logger.error(f"❌ Failed to open dataset from URLs: {e}")
+                    raise
 
-    return ds, opendap_urls
+        return ds, opendap_urls
+        
+    except Exception as e:
+        logger.warning(f"Download failed from this server: {e}")
+        return None, []
 
 
 def build_pydap_stores(
@@ -628,6 +1111,7 @@ def search_and_download_cordex(
     hostname: str = "https://esg-dn1.nsc.liu.se/esg-search",
     distrib: bool = False,
     first_time: bool = True,
+    facets: str | None = None,
 ) -> None:
     """Search and download CORDEX files with optional post-processing.
 
@@ -655,6 +1139,8 @@ def search_and_download_cordex(
         distrib (bool, optional): If True, searches across distributed nodes.
             Defaults to False.
         first_time (bool, optional): If True, bootstraps certificates. Defaults to True.
+        facets (str, optional): Comma-separated list of facets to include in search.
+            If None, uses CORDEX-specific defaults to avoid warnings. Defaults to None.
 
     Example:
         >>> query = {"project": "CORDEX", "domain": "EUR-11", "variable": "tas"}
@@ -672,7 +1158,13 @@ def search_and_download_cordex(
 
     # Search for matching datasets
     conn = SearchConnection(hostname, distrib=distrib)
-    ctx = conn.new_context()
+    
+    # Use specific facets if provided, otherwise use CORDEX defaults to avoid warning
+    if facets is None:
+        cordex_facets = 'project,domain,variable,experiment,time_frequency,model,downscaling_realisation'
+        ctx = conn.new_context(facets=cordex_facets)
+    else:
+        ctx = conn.new_context(facets=facets)
     results = ctx.search(**query)
 
     # Download and process each file

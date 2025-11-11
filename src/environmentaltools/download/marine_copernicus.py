@@ -71,6 +71,7 @@ class ERA5DataDownloadConfig:
         area_bounds (list): Geographic bounds [North, West, South, East].
         output_directory (str): Directory for output files.
         file_prefix (str): Prefix for output filenames.
+        retry_attempts (int): Number of retry attempts for failed downloads.
     
     Example:
         >>> # Download wave data
@@ -103,6 +104,7 @@ class ERA5DataDownloadConfig:
                 - hours (list): Hours to download (default: all)
                 - area_bounds (list): [North, West, South, East]
                 - output_directory (str): Output path
+                - retry_attempts (int): Number of retry attempts (default: 3)
         
         Raises:
             ValueError: If configuration is invalid.
@@ -147,6 +149,9 @@ class ERA5DataDownloadConfig:
         # Output configuration
         self.output_directory: str = config.get('output_directory', "./data")
         self.file_prefix: str = config.get('file_prefix', "waves")
+        
+        # Download configuration
+        self.retry_attempts: int = config.get('retry_attempts', 3)
         
     
     def _validate_config(self) -> None:
@@ -196,6 +201,25 @@ class ERA5DataDownloadConfig:
         Path(self.output_directory).mkdir(parents=True, exist_ok=True)
         
         logger.info("Configuration validation completed successfully")
+    
+    def print_summary(self) -> None:
+        """Print a summary of the current configuration using loguru logger."""
+        logger.info("\n" + "="*60)
+        logger.info("ERA5 Data Download Configuration Summary")
+        logger.info("="*60)
+        logger.info(f"Dataset:         {self.dataset_name}")
+        logger.info(f"Variable:        {self.variable}")
+        logger.info(f"Product Type:    {self.product_type}")
+        logger.info(f"Format:          {self.format}")
+        logger.info(f"Time Period:     {self.start_year} - {self.end_year}")
+        logger.info(f"Months:          {len(self.months)} months ({self.months[0]} to {self.months[-1]})")
+        logger.info(f"Days:            {len(self.days)} days ({self.days[0]} to {self.days[-1]})")
+        logger.info(f"Hours:           {len(self.hours)} hours ({self.hours[0]} to {self.hours[-1]})")
+        logger.info(f"Area bounds:     [N:{self.area_bounds[0]}, W:{self.area_bounds[1]}, S:{self.area_bounds[2]}, E:{self.area_bounds[3]}]")
+        logger.info(f"Output directory: {self.output_directory}")
+        logger.info(f"File prefix:     {self.file_prefix}")
+        logger.info(f"Retry attempts:  {self.retry_attempts}")
+        logger.info("="*60)
     
 
 class ERA5DataDownloader:
