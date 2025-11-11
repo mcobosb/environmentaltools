@@ -4,12 +4,41 @@
 - [X] Include module table and usage examples in README.md
 - [X] Prepare conda-forge recipe for staged-recipes submission
 - [X] Link project to readthedocs
+- [ ] Project to pypi
 
 📦 pyproject.toml
 - [X] Update common dependencies
 
 🧪 Examples
 - [ ] Run examples and check that works fine
+- [ ]   · temporal - E05 - multivariate_simulations.py
+- [ ]   · temporal - E06 - multivariate_ensemble_simulation.py
+- [ ]   · temporal - E07 - maximum_dissimilitude_analysis.py
+- [ ]   · temporal - E08 - copula_fit_bivariate_distributions.py
+- [ ]   · temporal - E09 - bootstrapping_with_l_moments.py
+- [ ]   · temporal - E10 - pot_with_l_moments.py
+- [ ]   · temporal - E11 - annual_maxima_regime.py
+- [ ]   · spatiotemporal - E05 - bayesian_maximum_entropy.py
+- [ ]   · spatiotemporal - E06 - anisotropic_spatiotemporal_covariance.py
+- [ ]   · processes - E01 - wave_height_with_swan_model.py
+- [ ]   · processes - E02 - currents_with_copla_model.py
+- [ ]   · processes - E03 - currents_with_cshore_model.py
+- [ ]   · processes - E04 - sediment_transport_Kobayashi.py
+- [ ]   · processes - E05 - coastal_equilibrium_plan_shape.py
+- [ ]   · processes - E06 - waves_zero_upcrossing_method.py
+- [ ]   · processes - E07 - calculate_wave_reflection.py
+- [ ]   · processes - E08 - precipitation_to_runoff_SCS.py
+- [ ]   · processes - E09 - compute_hydraulic_radius.py
+- [ ]   · processes - E10 - water_elevation_from_manning.py
+- [ ]   · processes - E11 - river_sediment_transport.py
+- [ ]   · processes - E12 - storm_surge_from_waves.py
+- [ ]   · processes - E13 - flood_fill_algorithm.py
+- [ ]   · spectral - E01 - lombscargle_periodogram.py
+- [ ]   · spectral - E02 - fast_fourier_transform.py
+- [ ]   · spectral - E03 - harmonic_analysis_utide.py
+- [ ]   · spectral - E04 - tidal_reconstruction_eot20.py
+- [ ]   · spatial - E01 - voronoi_diagram.py
+- [ ]   · spatial - E02 - mesh_triangulation.py
 - [ ] Revise examples, input data, results and output graphics
 - [ ] Reduce size of input data for examples
 
@@ -22,10 +51,10 @@
 - [ ] Implement additional pre-treatment steps as required - Line 227
 
 ### temporal
-- [ ] Update statistical_fit and its dependencies
-- [ ] Update initialization message in analysis.py - Line 30
-- [ ] Update docstring for simulation function - Line 62 in simulation.py
-- [ ] Update docstring for _summary_ function - Line 441 in simulation.py
+- [X] Update statistical_fit and its dependencies
+- [X] Update initialization message in analysis.py - Line 30
+- [X] Update docstring for simulation function - Line 62 in simulation.py
+- [X] Update docstring for _summary_ function - Line 441 in simulation.py
 - [ ] Implement non-normal multivariate analysis (currently only normal distribution) - Line 523 in simulation.py
 - [ ] Review value of 1e-6 subtraction in CDF to avoid 1.0 values - Line 355 in regimes.py
 - [ ] Review peaks selection function for POT analysis - Line 398 in regimes.py
