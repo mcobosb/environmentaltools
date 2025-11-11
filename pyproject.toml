@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.0.2"
+version = "2026.1.0"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -39,6 +39,7 @@ dependencies = [
     "lxml",
     "matplotlib",
     "numpy",
+    "openpyxl",
     "pandas",
     "pillow",
     "pypdf2",
@@ -59,12 +60,13 @@ dependencies = [
 [project.optional-dependencies]
 download = [
     "cdo",
-    "cdsapi",
+    "cdsapi", 
     "configobj",
     "earthengine-api",
-    "esgf-pyclient",
+    "esgf-pyclient",  # Required for CORDEX data (PyESGF)
+    "intake-esgf",    # Modern ESGF client (for other projects)
+    "geedim",
     "geemap",
-    "pydap",
     "tqdm",
     "werkzeug",
 ]
@@ -85,8 +87,10 @@ all = [
     "cdsapi",
     "configobj",
     "earthengine-api", 
-    "esgf-pyclient",
+    "esgf-pyclient", # download - CORDEX support
+    "intake-esgf",   # download - modern ESGF
     "folium", # spatial
+    "geedim",
     "geemap",
     "glob2", # spatiotemporal
     "ipykernel", # examples
