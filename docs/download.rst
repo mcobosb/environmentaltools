@@ -17,18 +17,14 @@ OpenStreetMap imagery, and Google Maps.
 CORDEX Data
 -----------
 
-Functions for downloading CORDEX climate model data.
+Functions for downloading CORDEX climate model data from ESGF nodes.
 
 .. autosummary::
    :toctree: _autosummary
 
-   parse_wget_script_to_queries
-   download_cordex_data
-   batch_download_with_config
    query_esgf_catalog
-   filter_esgf_queries
    download_esgf_dataset
-   search_and_download_cordex
+   download_with_config
 
 Google Earth Engine
 -------------------

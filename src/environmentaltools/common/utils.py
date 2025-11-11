@@ -209,7 +209,6 @@ def nonstationary_ecdf(
 
 
 def best_params(data: pd.DataFrame, bins: int, distrib: str, tail: bool = False):
-
     """Computes the best parameters of a simple probability model based on the RMSE of the PDF.
 
     Args:
@@ -228,7 +227,7 @@ def best_params(data: pd.DataFrame, bins: int, distrib: str, tail: bool = False)
     data = data.sort_values(ascending=True).values
     while (dif_ > 1) & (sser > 30) & (0.95 * nlen < len(data)):
         # Fit the distribution using the statistical_fit module
-        results = core.fit(data, bins, distrib)
+        results = fit_(data, bins, distrib)
         sse, params = results[0], results[1:]
         dif_, sser = np.abs(sser - sse), sse
 
@@ -237,6 +236,38 @@ def best_params(data: pd.DataFrame, bins: int, distrib: str, tail: bool = False)
         else:
             data = data[nlen:-nlen]
     return params
+
+
+
+def fit_(data: pd.DataFrame, bins: int, model: str):
+    """Fits a simple probability model and computes the sse with the empirical pdf
+
+    Args:
+        * data (pd.DataFrame): raw time series
+        * bins (int): no. of bins for the histogram
+        * model (string): name of the probability model
+
+    Returns:
+        * results (np.array): the parameters computed
+    """
+
+    y, x = np.histogram(data, bins=bins, density=True)
+    xq = np.diff(x)
+    x = (x + np.roll(x, -1))[:-1] / 2.0
+    yq = np.cumsum(xq * y)
+
+    if model is st.genpareto:
+        params = model.fit(data, 0.01, loc=np.min(data))
+    else:
+        params = model.fit(data)
+    cdf = model.cdf(x, loc=params[-2], scale=params[-1], *params[:-2])
+    sse = np.sum((yq - cdf) ** 2)
+    if np.isnan(sse):
+        sse = 1e10
+
+    results = np.zeros(len(params) + 1)
+    results[: int(len(params) + 1)] = np.append(sse, params)
+    return results
 
 
 def ecdf(df: pd.DataFrame, variable: str, num_percentiles: int | bool = False) -> pd.DataFrame:

@@ -2085,7 +2085,7 @@ def heatmap(
             matrix and Q for the covariance matrix
         * file_name: name of the oputput file
     """
-    fig, ax = handle_axis(ax)
+    _, ax = handle_axis(ax)
 
     # Plot the heatmap
     if minmax == "minimax":
@@ -2094,6 +2094,8 @@ def heatmap(
         im = ax.imshow(data, cmap=cmap, vmin=minmax[0], vmax=minmax[1])
     elif minmax == "log":
         im = ax.imshow(data, cmap=cmap, norm=LogNorm(vmin=0.001, vmax=10))
+    else:
+        im = ax.imshow(data, cmap=cmap)
 
     # We want to show all ticks ...
     ax.set_xticks(np.arange(np.asarray(data).shape[1]))
@@ -2112,8 +2114,8 @@ def heatmap(
         for key_ in param["vars"]:
             row_labels.append(labels(key_))
     else:
-        column_labels = param["columns"]
-        row_labels = param["rows"]
+        column_labels = param["vars"]
+        row_labels = param["vars"]
 
     ax.set_xticklabels(column_labels)
     ax.set_yticklabels(row_labels)
@@ -2283,7 +2285,7 @@ def annotate_heatmap(
     texts = []
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
-            kw.update(color=textcolors[abs(data.data[i, j]) > threshold])
+            kw.update(color=textcolors[int(abs(data.data[i, j]) > threshold)])
             text = im.axes.text(j, i, valfmt(data[i, j], None), **kw)
             texts.append(text)
 

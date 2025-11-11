@@ -10,9 +10,9 @@ from statsmodels.tsa.vector_ar.var_model import VAR
 from loguru import logger
 
 from environmentaltools.common import utils, read, save
-from environmentaltools.temporal import core, utils
+from environmentaltools.temporal import core
 from environmentaltools.temporal.classification import class_storm_seasons
-from environmentaltools.temporal.utils import extreme_events
+from environmentaltools.temporal.utils import extreme_events, events_duration
 
 """This file is part of environmentaltools.
 
@@ -34,9 +34,6 @@ along with environmentaltools.  If not, see <https://www.gnu.org/licenses/>.
 def show_init_message():
     message = (
         "\n"
-        + "=============================================================================\n"
-        + " Initializing environmentaltools.temporal, v.0.0.1\n"
-        + "=============================================================================\n"
         + "Copyright (C) 2026 Environmental Fluid Dynamics Group (University of Granada)\n"
         + "=============================================================================\n"
         + "This program is free software; you can redistribute it and/or modify it under\n"
@@ -178,11 +175,6 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
     current_time = now.strftime("%H:%M:%S")
     if verbose:
         logger.info(show_init_message())
-    else:
-        logger.info("Initializing environmentaltools.temporal, v.0.0.1")
-        logger.info(
-            "=============================================================================="
-        )
     logger.info("Current Time = %s\n" % current_time)
 
     # Remove nan in the input timeseries
@@ -205,7 +197,7 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
         # Compute the difference
         ecdf["dif"] = ecdf["soft"].diff()
         # Obtain the index of the max
-        max_ = utils.max_moving(ecdf["dif"], 250)
+        max_ = utils.max_moving_window(ecdf["dif"], 250)
         parameters["ws_ps"] = [max_.index[0]]
 
     parameters["verbose"] = verbose
@@ -394,8 +386,11 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
         parameters["file_name"] = os.path.join(
             parameters["folder_name"], parameters["file_name"]
         )
+    else:
+        pass
 
     del parameters["weighted"]["values"]
+    os.makedirs(os.path.dirname(parameters["file_name"]), exist_ok=True)
     save.to_json(parameters, parameters["file_name"])
 
     # Return the dictionary with the parameters of the analysis
@@ -903,13 +898,13 @@ def check_marginal_params(param: dict):
 
 
 def add_noise_to_array(
-    data: pd.DataFrame, variables: str, remove: bool = False, filter_: str = None
+    data: pd.DataFrame, variables: list, remove: bool = False, filter_: str = None
 ):
     """Adds small random noise to the selected variable(s) in a time series for better estimations.
 
     Args:
         data (pd.DataFrame): Raw time series.
-        variable (str or list): Variable(s) to apply noise to.
+        variable (list): Variable(s) to apply noise to.
         remove (bool): If True, rows filtered by `filter_` are removed from the output.
         filter_ (str, optional): Query string to filter the DataFrame before adding noise.
 
@@ -1265,8 +1260,8 @@ def storm_properties(data, cols, info):
 
     # Duration of storm and interarrival time
     cycles, calms = cycles_ini, calms_ini
-    dur_cycles = utils.events_duration(list(cycles))
-    dur_calms = utils.events_duration(list(calms))
+    dur_cycles = events_duration(list(cycles))
+    dur_calms = events_duration(list(calms))
 
     dur_cycles = pd.DataFrame(
         dur_cycles.values, index=dur_cycles.index, columns=["dur_storm"]
@@ -1815,7 +1810,7 @@ def ensemble_dt(models: dict, percentiles="equally"):
     )  # ord_
 
     # Create the fit directory and save the parameters to a json file
-    utils.mkdir("fit")
+    os.makedirs("fit", exist_ok=True)
     save.to_json(df_dt_ensemble, "fit/ensemble_df_dt", True)
     return B, Q, int((norders[1] - 1) / norders[0])
 

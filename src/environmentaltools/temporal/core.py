@@ -117,7 +117,7 @@ def stationary_analysis(df: pd.DataFrame, param: dict):
             filtro = (df[param["var"]] >= thresholds[i]) & (
                 df[param["var"]] <= thresholds[i + 1]
             )
-            par = best_params(df.loc[filtro, param["var"]], 25, param["fun"][i])
+            par = utils.best_params(df.loc[filtro, param["var"]], 25, param["fun"][i])
             par0 = np.hstack([par0, par]).tolist()
 
         if not param["fix_percentiles"]:
