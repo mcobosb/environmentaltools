@@ -390,3 +390,97 @@ Std {variable_label}: {data[variable_name].std():.3f} {variable_units}"""
     except Exception as e:
         raise ValueError(f"Plot creation failed: {str(e)}")
 
+
+def plot_presence_boundary(contours, mean_map, threshold=None, title=None, 
+                          figsize=(10, 8), cmap='viridis', output_path=None):
+    """
+    Visualize mean presence boundary with contours and background heatmap.
+    
+    Creates a visualization showing the spatial mean map as a heatmap with
+    overlaid contour lines indicating the presence boundary threshold.
+    
+    Parameters
+    ----------
+    contours : list
+        List of contour coordinates from mean_presence_boundary function.
+    mean_map : np.ndarray
+        2D array of temporal mean values for each spatial location.
+    threshold : float, optional
+        Threshold value used to define presence boundary. If None, uses
+        the mean of mean_map.
+    title : str, optional
+        Plot title. If None, uses default title.
+    figsize : tuple, optional
+        Figure size as (width, height). Default is (10, 8).
+    cmap : str, optional
+        Colormap for the heatmap. Default is 'viridis'.
+    output_path : str or Path, optional
+        Path to save the figure. If None, displays the plot.
+    
+    Returns
+    -------
+    None or str
+        If output_path is provided, returns the path where figure was saved.
+        Otherwise, displays the plot and returns None.
+    
+    Examples
+    --------
+    >>> from environmentaltools.spatiotemporal import indicators
+    >>> from environmentaltools.graphics import spatiotemporal
+    >>> import numpy as np
+    >>> 
+    >>> # Generate sample data
+    >>> data_cube = np.random.random((365, 50, 50))
+    >>> contours, mean_map = indicators.mean_presence_boundary(data_cube, threshold=0.6)
+    >>> 
+    >>> # Visualize
+    >>> spatiotemporal.plot_presence_boundary(contours, mean_map, threshold=0.6)
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot mean map as heatmap
+    im = ax.imshow(mean_map, cmap=cmap, origin='lower', aspect='auto')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, label='Temporal Mean Value')
+    
+    # Plot contours
+    for contour in contours:
+        ax.plot(contour[:, 1], contour[:, 0], 'r-', linewidth=2, label='Presence Boundary')
+    
+    # Add threshold line to colorbar if provided
+    if threshold is not None:
+        cbar.ax.axhline(threshold, color='red', linewidth=2, linestyle='--')
+        cbar.ax.text(0.5, threshold, f' {threshold:.3f}', 
+                    va='center', ha='left', color='red', fontweight='bold')
+    
+    # Set labels and title
+    ax.set_xlabel('X coordinate', fontsize=12)
+    ax.set_ylabel('Y coordinate', fontsize=12)
+    
+    if title is None:
+        if threshold is not None:
+            title = f'Mean Presence Boundary (threshold = {threshold:.3f})'
+        else:
+            title = 'Mean Presence Boundary'
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    
+    # Add legend (only one entry even if multiple contours)
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys(), loc='upper right')
+    
+    plt.tight_layout()
+    
+    # Save or show
+    if output_path is not None:
+        from pathlib import Path
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.close()
+        return str(output_path)
+    else:
+        plt.show()
+        return None
