@@ -217,7 +217,6 @@ binary matrix generation for threshold exceedances, input validation, and NetCDF
 .. autosummary::
    :toctree: _autosummary
 
-   check_config_file
    calculate_temporal_differences
    check_inputs
    post_treatment

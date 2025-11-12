@@ -137,7 +137,6 @@ from environmentaltools.spatiotemporal.multicriteria import (
 
 # Raster analysis
 from environmentaltools.spatiotemporal.raster import (
-    check_config_file,
     check_inputs,
     post_treatment,
     binary_matrix,
@@ -205,7 +204,6 @@ __all__ = [
     'create_topsis_maps',
     
     # Raster
-    'check_config_file',
     'check_inputs',
     'post_treatment',
     'binary_matrix',

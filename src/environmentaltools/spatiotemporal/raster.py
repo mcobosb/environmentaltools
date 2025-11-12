@@ -32,7 +32,6 @@ Main Components
 
 Functions
 ---------
-check_config_file : Load and validate configuration parameters
 calculate_temporal_differences : Analyze temporal changes in elevation data
 check_inputs : Validate input data and setup processing parameters
 post_treatment : Perform preprocessing steps for analysis
@@ -82,53 +81,6 @@ from environmentaltools.spatiotemporal.utils import (
 import json
 from loguru import logger
 
-
-def check_config_file(config_path=None):
-    """
-    Check for the existence of the configuration file required for marine spatial analysis.
-
-    This function verifies that the configuration file specified in the project settings
-    exists and loads the configuration parameters. If the file is not found, it raises 
-    a FileNotFoundError.
-
-    Parameters
-    ----------
-    config_path : Path or str, optional
-        Path to the configuration file. Must be a valid JSON file containing
-        project configuration parameters.
-
-    Returns
-    -------
-    dict
-        Configuration dictionary loaded from the JSON file, containing project
-        parameters, file paths, and processing settings.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the configuration file does not exist at the specified path.
-    JSONDecodeError
-        If the configuration file is not valid JSON format.
-
-    Notes
-    -----
-    The configuration file is expected to contain the following structure:
-    - project: Project-specific settings and paths
-    - temporal: Time-related processing parameters
-    - parameters: Analysis parameters and options
-    - seasons: Seasonal definitions for temporal analysis
-    """
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-
-    # Load configuration from JSON
-    with open(config_path, 'r', encoding='utf-8') as f:
-        info = json.load(f)
-
-    logger.info(f"Configuration loaded from: {config_path}")
-    logger.info(f"Processing parameters: {info}")
-
-    return info
 
 def calculate_temporal_differences(info):
     """
@@ -607,7 +559,7 @@ def binary_matrix(data_cube, levels, info):
     return bin_mask
 
 
-def analysis(config_path=None):
+def analysis(info=None):
     """
     Execute the complete spatiotemporal raster analysis workflow.
 
@@ -618,9 +570,9 @@ def analysis(config_path=None):
 
     Parameters
     ----------
-    config_path : Path or str, optional
-        Path to the configuration JSON file containing project parameters,
-        input/output paths, and analysis settings.
+    info : dict
+        Configuration dictionary containing project parameters, input/output paths,
+        and analysis settings.
 
     Returns
     -------
@@ -650,8 +602,6 @@ def analysis(config_path=None):
     logger.info("STARTING SPATIOTEMPORAL RASTER ANALYSIS")
     logger.info("="*60)
     
-    # Load and validate configuration file
-    info = check_config_file(config_path)
     # Validate input data and setup processing parameters
     check_inputs(info)
      
