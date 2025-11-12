@@ -39,11 +39,15 @@
 - [ ]   · spectral - E04 - tidal_reconstruction_eot20.py
 - [ ]   · spatial - E01 - voronoi_diagram.py
 - [ ]   · spatial - E02 - mesh_triangulation.py
+- [ ]   · spatial - E03 - coastline_from_imagery.py
 - [ ] Revise examples, input data, results and output graphics
 - [ ] Reduce size of input data for examples
 
 
 ## 📂 Module-specific TODOs
+
+### download.google-earth-engine
+- [ ] Generalize the function for others satellite products
 
 ### spatiotemporal.raster.analysis
 - [ ] Check that level series files exist - Line 67
