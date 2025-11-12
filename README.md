@@ -8,9 +8,9 @@ It is compound by a list of subpackages that focus on:
 | Package name                    | Mean objective                                           | State         | Base installation
 |---------------------------------|----------------------------------------------------------| --------------|-----|
 | environmentaltools.**common**        | Auxiliary utilities for data handling and processing     | Stable        | **Yes** |
-| environmentaltools.**data**         | Download environmental data from various sources (CMEMS) | Stable        | No  |
+| environmentaltools.**data**         | Download environmental data from various sources (CMEMS) | Download from GitHub| No  |
 | environmentaltools.**drone**        | UAV mission planning and flight data generation          | Under develop | No  |
-| environmentaltools.**examples**     | Full catalog of examples of each package                 | Stable        | No  |
+| environmentaltools.**examples**     | Full catalog of examples of each package                 | Download from GitHub        | No  |
 | environmentaltools.**graphics**     | Visualization tools for environmental data               | Stable        | **Yes** |
 | environmentaltools.**processes**    | Wave modeling and environmental processes                | Stable        | No  |
 | environmentaltools.**spatial**      | Geospatial analysis and topography/bathymetry processing | Stable        | No  |
@@ -21,11 +21,10 @@ It is compound by a list of subpackages that focus on:
 Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
 
 `python -m venv environmentaltools`  
-`pip install .` # for installing Basic packages (common, graphics, temporal)  
-`pip install -e .[download]` # for installing download package  
-`pip install -e .[spatiotemporal]` # for installing spatiotemporal package  
-`pip install -e .[estuaries,examples]` # for installing both estuaries and examples  
-`pip install -e .[all]` # for installing the full repository  
+`pip install environmentaltools` # for installing Full Package (common, graphics, temporal, etc.)  
+`pip install -e environmentaltools[download]` # for installing download package  
+`pip install -e environmentaltools[spatiotemporal]` # for installing spatiotemporal package  
+`pip install -e environmentaltools[estuaries,examples]` # for installing both estuaries and examples  
 
 ## 📊 LaTeX support for figure rendering
 

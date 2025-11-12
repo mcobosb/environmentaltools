@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.2.4"
+version = "2026.2.5"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -33,8 +33,18 @@ license-files = ["LICENSE"]
 dependencies = [
     "affine",
     "cartopy",
+    "cdo",  # download/cordex_data module
+    "cdsapi",  # download/marine_copernicus module
     "cmocean",
+    "configobj",  # download module
+    "earthengine-api",  # download/google_earth_engine module
+    "esgf-pyclient",  # download/cordex_data module (PyESGF)
+    "folium",  # spatial module
+    "geedim",  # download module
+    "geemap",  # download/google_earth_engine module
     "geopandas",
+    "glob2",  # spatiotemporal module
+    "intake-esgf",  # download module (modern ESGF client)
     "loguru",
     "lxml",
     "matplotlib",
@@ -42,65 +52,97 @@ dependencies = [
     "openpyxl",
     "pandas",
     "pillow",
+    "pydap",  # download module
+    "pymcdm",  # spatiotemporal/multicriteria module
     "pypdf2",
     "pyproj",
     "pyshp",
     "python-dotenv",
+    "pytmd",  # spectral/analysis module
     "rasterio",
     "requests",
+    "scikit-image",  # spatiotemporal module
     "scikit-learn",
     "scipy",
     "seaborn",
     "statsmodels",
     "tabula-py",
+    "timescale",  # spectral/analysis module (time conversions)
+    "tqdm",  # download module
+    "utide",  # spectral/analysis module
+    "werkzeug",  # download module
     "windrose",
     "xarray",
 ]
 
 [project.optional-dependencies]
+# Subsets for minimal installations - these are module-specific dependencies
 download = [
-    "cdo",
-    "cdsapi", 
-    "configobj",
-    "earthengine-api",
-    "esgf-pyclient",  # Required for CORDEX data (PyESGF)
-    "intake-esgf",    # Modern ESGF client (for other projects)
-    "geedim",
-    "geemap",
-    "tqdm",
-    "werkzeug",
+    "cdo",  # cordex_data.py
+    "cdsapi",  # marine_copernicus.py
+    "configobj",  # cordex_data.py
+    "earthengine-api",  # google_earth_engine.py
+    "esgf-pyclient",  # cordex_data.py (PyESGF for CORDEX)
+    "intake-esgf",  # cordex_data.py (modern ESGF client)
+    "geedim",  # google_earth_engine.py
+    "geemap",  # google_earth_engine.py
+    "pandas",  # multiple files
+    "pydap",  # data access
+    "requests",  # multiple files
+    "tqdm",  # cordex_data.py
+    "werkzeug",  # cordex_data.py
+    "xarray",  # cordex_data.py
 ]
-examples = ["ipykernel"]
-spatial = ["folium"]
-spatiotemporal = ["glob2", "pymcdm", "scikit-image"]
-spectral = ["pytmd", "utide"]
+spatial = [
+    "folium",  # geotools.py
+    "geopandas",  # analysis.py, geotools.py
+    "matplotlib",  # geotools.py, analysis.py
+    "numpy",  # multiple files
+    "pandas",  # multiple files
+    "pyproj",  # geotools.py
+    "scipy",  # analysis.py, geotools.py
+]
+spatiotemporal = [
+    "folium",  # geotools.py
+    "geopandas",  # analysis.py, geotools.py
+    "matplotlib",  # geotools.py, analysis.py
+    "numpy",  # multiple files
+    "pandas",  # multiple files
+    "pyproj",  # geotools.py
+    "scipy",  # analysis.py, geotools.py
+    "glob2",  # file handling
+    "loguru",  # raster.py
+    "pymcdm",  # multicriteria.py
+    "scikit-image",  # indicators.py (skimage)
+    "scipy",  # indicators.py, utils.py
+    "xarray",  # raster.py
+]
+temporal = [
+    "loguru",  # simulation.py, regimes.py
+    "matplotlib",  # simulation.py
+    "numpy",  # multiple files
+    "pandas",  # multiple files
+    "scipy",  # multiple files
+]
+spectral = [
+    "matplotlib",  # analysis.py
+    "numpy",  # analysis.py
+    "pandas",  # analysis.py
+    "pytmd",  # analysis.py (tide modeling)
+    "scipy",  # analysis.py
+    "timescale",  # analysis.py (time conversions)
+    "utide",  # analysis.py (harmonic analysis)
+]
+processes = [
+    "matplotlib",  # compute.py
+    "numpy",  # multiple files
+    "pandas",  # multiple files
+    "scipy",  # multiple files
+    "xarray",  # load.py, compute.py
+]
 docs = [
-    "glob2",
     "sphinx",
     "sphinx-rtd-theme",
-    "tqdm",
-    # Note: Heavy dependencies are mocked in docs/conf.py
-    # to avoid installation issues on ReadTheDocs
-]
-all = [
-    "cdo", # download
-    "cdsapi",
-    "configobj",
-    "earthengine-api", 
-    "esgf-pyclient", # download - CORDEX support
-    "intake-esgf",   # download - modern ESGF
-    "folium", # spatial
-    "geedim",
-    "geemap",
-    "glob2", # spatiotemporal
-    "ipykernel", # examples
-    "pymcdm", # spatiotemporal
-    "pydap",
-    "pytmd", # spectral
-    "scikit-image", # spatiotemporal
-    "tqdm",
-    "utide", # spectral
-    "werkzeug",
 ]
 
 [project.urls]
