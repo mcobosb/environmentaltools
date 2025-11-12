@@ -1,10 +1,24 @@
 import io
 from urllib.request import Request, urlopen
 
-import cartopy
-import cartopy.crs as ccrs
-import cartopy.geodesic as cgeo
-import cartopy.io.img_tiles as cimgt
+# Cartopy can fail with debugger in Python 3.13 due to Cython issues
+try:
+    import cartopy.crs as ccrs
+    import cartopy.geodesic as cgeo
+    import cartopy.io.img_tiles as cimgt
+    HAS_CARTOPY = True
+except (ImportError, AssertionError, KeyError) as e:
+    HAS_CARTOPY = False
+    ccrs = None
+    cgeo = None
+    cimgt = None
+    import warnings
+    warnings.warn(
+        f"Cartopy import failed: {e}. Map-based plotting functions will not be available. "
+        "This can happen when using the debugger with Python 3.13.",
+        ImportWarning
+    )
+
 import cmocean
 import matplotlib.pyplot as plt
 import numpy as np
