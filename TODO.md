@@ -40,11 +40,16 @@
 - [ ]   · spatial - E01 - voronoi_diagram.py
 - [ ]   · spatial - E02 - mesh_triangulation.py
 - [ ]   · spatial - E03 - coastline_from_imagery.py
+- [ ]   · risk - E01 - compute_economic_index.py
 - [ ] Revise examples, input data, results and output graphics
 - [ ] Reduce size of input data for examples
 
 
 ## 📂 Module-specific TODOs
+
+### risk
+- [ ] Add damage curves
+- [ ] Add functionality por computing risk on maps
 
 ### download.google-earth-engine
 - [ ] Generalize the function for others satellite products
