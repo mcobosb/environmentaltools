@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.2.5"
+version = "2026.3.0"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
@@ -13,7 +13,7 @@ maintainers = [
 ]
 description = "environmentaltools is an open-source Python package for modular environmental management, integrating timeseries analysis, raster-based processing, decision matrices, sensor workflows, and legal-administrative support for coastal and terrestrial systems."
 readme = { file = "README.md", content-type = "text/markdown"} 
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 classifiers = [
   # How mature is this project? Common values are
   #   3 - Alpha
@@ -26,6 +26,7 @@ classifiers = [
   "Topic :: Software Development :: Build Tools",
 
   # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
 ]
 license = "GPL-3.0-or-later"
