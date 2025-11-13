@@ -444,9 +444,19 @@ def plot_presence_boundary(contours, mean_map, threshold=None, title=None,
     # Add colorbar
     cbar = plt.colorbar(im, ax=ax, label='Temporal Mean Value')
     
-    # Plot contours
-    for contour in contours:
-        ax.plot(contour[:, 1], contour[:, 0], 'r-', linewidth=2, label='Presence Boundary')
+    # Plot contours - handle different formats
+    if len(contours) > 0:
+        for i, contour in enumerate(contours):
+            # Handle both 1D and 2D contour arrays
+            contour = np.atleast_2d(contour)
+            if contour.shape[1] == 2:
+                # Standard format: (n_points, 2) with [row, col]
+                label = 'Presence Boundary' if i == 0 else None
+                ax.plot(contour[:, 1], contour[:, 0], 'r-', linewidth=2, label=label)
+            elif contour.shape[0] == 2:
+                # Transposed format: (2, n_points) with [row; col]
+                label = 'Presence Boundary' if i == 0 else None
+                ax.plot(contour[1, :], contour[0, :], 'r-', linewidth=2, label=label)
     
     # Add threshold line to colorbar if provided
     if threshold is not None:

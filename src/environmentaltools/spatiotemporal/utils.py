@@ -145,9 +145,10 @@ def band(data_cube, levels):
     In debug mode (DEBUG_MODE=True), displays a visualization of the band.
     The function extends the initial mask along the specified orientation to
     create a continuous band across the domain.
+    TODO: Optimize band extension to avoid holes in complex geometries.
     """
     # Define level bounds and create initial mask
-    z_ = np.where((data_cube["z"] < levels.max()) & (data_cube["z"] > levels.min()), 1, 0)
+    z_ = np.where((data_cube < levels.max()) & (data_cube > levels.min()), 1, 0)
 
     # Debug mode: show band visualization
     if DEBUG_MODE:

@@ -72,6 +72,7 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
+from environmentaltools.spatiotemporal import indicators
 from environmentaltools.spatiotemporal.utils import (
     band,
     calculate_grid_angle_and_create_rotated_mesh,
@@ -126,7 +127,7 @@ def calculate_temporal_differences(info):
             # Use the first data variable if elevation/z not found
             var_name = list(ds.data_vars.keys())[0]
             elevation_data = ds[var_name]
-            logger.warning(f"Using variable '{var_name}' as elevation data")
+            logger.info(f"Using variable '{var_name}' of the data cube")
             
             # Get dimensions
             time_dim = elevation_data.dims[0]  # Usually 'time'
@@ -461,7 +462,7 @@ def post_treatment(info):
 
     # Load initial data cube for refinement band creation
     initial_file = info["datacube_filenames"][0]
-    data_cube = xr.open_dataset(initial_file)[info["project"]["variables"][0]]
+    data_cube = xr.open_dataset(initial_file) # [info["project"]["variables"][0]]
 
     # Perform temporal difference analysis across all simulations
     results = calculate_temporal_differences(info)
@@ -494,15 +495,16 @@ def post_treatment(info):
     # Create band levels array for refinement processing
     info["band_levels"] = np.array([absolute_min, absolute_max])
 
+    # TODO: define the refinement processing
     # Generate refinement band from data cube and level boundaries
-    info["band"], coords = band(data_cube, info["band_levels"])
+    # info["band"], coords = band(data_cube[info["project"]["variables"][0]], info["band_levels"])
 
     # Initialize coordinate dictionary for refined grid
-    info["coords"] = {}
+    # info["coords"] = {}
     # Create refined grid coordinates X and Y for spatial interpolation
-    info["coords"]["X"], info["coords"]["Y"], _ = calculate_grid_angle_and_create_rotated_mesh(
-        coords["X"], coords["Y"], info["refinement_size"]
-    )
+    # info["coords"]["X"], info["coords"]["Y"], _ = calculate_grid_angle_and_create_rotated_mesh(
+    #     coords["X"], coords["Y"], info["refinement_size"]
+    # )
 
     return info
 
@@ -605,9 +607,13 @@ def analysis(info=None):
     # Validate input data and setup processing parameters
     check_inputs(info)
      
+    result = {}
     # Process each analysis index specified in configuration
     for k, index in enumerate(info["project"]["index"]):
         logger.info(f"Starting post-processing for project index {info['project']['index'][k]} ---")
+        
+        # Initialize result list for this index
+        result[index] = []
         
         # Process each simulation for the current index
         for sim_no in range(info["project"]["no_sims"]):
@@ -652,9 +658,179 @@ def analysis(info=None):
                 )
                 logger.info(f"Saving {output_filename}")
         
-        post_treatment(info)
+        # post_treatment(info)
+    
+        logger.info("COMPUTING INDICATORS FROM BINARY MATRIX")
+        logger.info("="*60)
 
-    return info
+
+    # Si el usuario especifica percentiles, calcularlos sobre el stack de data_cubes
+    if 'percentiles' in info.get('statistics', {}):
+        percentiles = info['statistics']['percentiles']
+        for idx in info['project']['index']:
+            # Usar open_mfdataset para abrir todos los NetCDF de simulaciones a la vez
+            nc_paths = [
+                str(
+                    info["project"]["output_files"][idx]["matrix"]
+                    / f"{idx}_sim_{str(sim_no+1).zfill(4)}.nc"
+                )
+                for sim_no in range(info["project"]["no_sims"])
+            ]
+            data_cubes_stack = xr.open_mfdataset(nc_paths, concat_dim='simulation', combine='nested')
+            indicator_func = getattr(indicators, idx)
+            percentiles_result = {}
+            for p in percentiles:
+                # Calcular el indicador para el percentil p sobre la dimensión 'simulation'
+                data_cube_percentil = data_cubes_stack.quantile(int(p)/100, dim='simulation')
+                indicator_result = indicator_func(data_cube_percentil)
+                percentiles_result[f'p{int(p)}'] = indicator_result
+            result[idx + '_percentiles'] = percentiles_result
+
+    # Save results to pickle file
+    save_results(result, info)
+    
+    return info, result
+
+
+def save_results(results, info):
+    """
+    Save indicator analysis results to JSON + NPZ format.
+    
+    Saves results in a portable format using JSON for metadata and numpy's
+    .npz format for array data. This avoids pickle compatibility issues.
+    
+    Parameters
+    ----------
+    results : dict
+        Dictionary containing indicator results for each index.
+        Format: {index_name: [(contours, mean_map), ...]}
+    info : dict
+        Configuration dictionary containing output path information.
+    
+    Returns
+    -------
+    Path
+        Path to the saved results directory.
+    """
+    from datetime import datetime
+    
+    # Create results directory if it doesn't exist
+    output_path = Path(info["project"]["output_path"])
+    results_dir = output_path / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = results_dir / f"indicator_results_{timestamp}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Prepare metadata and arrays
+    metadata = {"indices": {}}
+    arrays_to_save = {}
+    
+    for index_name, simulations in results.items():
+        metadata["indices"][index_name] = {
+            "n_simulations": len(simulations),
+            "contour_keys": [],
+            "mean_map_keys": []
+        }
+        
+        for sim_idx, (contours, mean_map) in enumerate(simulations):
+            # Save mean_map
+            mean_map_key = f"{index_name}_sim{sim_idx}_mean_map"
+            arrays_to_save[mean_map_key] = mean_map
+            metadata["indices"][index_name]["mean_map_keys"].append(mean_map_key)
+            
+            # Save contours (each contour separately)
+            metadata["indices"][index_name]["contour_keys"].append([])
+            for contour_idx, contour in enumerate(contours):
+                contour_key = f"{index_name}_sim{sim_idx}_contour{contour_idx}"
+                arrays_to_save[contour_key] = contour
+                metadata["indices"][index_name]["contour_keys"][-1].append(contour_key)
+    
+    # Save metadata as JSON
+    metadata_file = output_dir / "metadata.json"
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    # Save arrays as NPZ
+    arrays_file = output_dir / "arrays.npz"
+    np.savez_compressed(arrays_file, **arrays_to_save)
+    
+    logger.info(f"Results saved to: {output_dir}")
+    logger.info(f"  - Metadata: {metadata_file}")
+    logger.info(f"  - Arrays: {arrays_file}")
+    return output_dir
+
+
+def load_results(results_path):
+    """
+    Load indicator analysis results from JSON + NPZ format.
+    
+    Parameters
+    ----------
+    results_path : str or Path
+        Path to the results directory (or metadata.json file).
+    
+    Returns
+    -------
+    dict
+        Dictionary containing indicator results for each index.
+        Format: {index_name: [(contours, mean_map), ...]}
+    
+    Examples
+    --------
+    >>> from environmentaltools.spatiotemporal import raster
+    >>> results = raster.load_results("results/indicator_results_20250112_143022")
+    >>> # Access results for specific index
+    >>> for contours, mean_map in results['mean_presence_boundary']:
+    ...     print(f"Found {len(contours)} contours")
+    """
+    from pathlib import Path
+    
+    results_path = Path(results_path)
+    
+    # Handle both directory and metadata.json file paths
+    if results_path.is_file() and results_path.name == "metadata.json":
+        results_dir = results_path.parent
+        metadata_file = results_path
+    else:
+        results_dir = results_path
+        metadata_file = results_dir / "metadata.json"
+    
+    arrays_file = results_dir / "arrays.npz"
+    
+    if not metadata_file.exists():
+        raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
+    if not arrays_file.exists():
+        raise FileNotFoundError(f"Arrays file not found: {arrays_file}")
+    
+    # Load metadata
+    with open(metadata_file, 'r') as f:
+        metadata = json.load(f)
+    
+    # Load arrays
+    arrays = np.load(arrays_file)
+    
+    # Reconstruct results dictionary
+    results = {}
+    for index_name, index_meta in metadata["indices"].items():
+        results[index_name] = []
+        
+        for sim_idx in range(index_meta["n_simulations"]):
+            # Load mean_map
+            mean_map_key = index_meta["mean_map_keys"][sim_idx]
+            mean_map = arrays[mean_map_key]
+            
+            # Load contours
+            contours = []
+            for contour_key in index_meta["contour_keys"][sim_idx]:
+                contours.append(arrays[contour_key])
+            
+            results[index_name].append((contours, mean_map))
+    
+    logger.info(f"Results loaded from: {results_dir}")
+    return results
 
 
 

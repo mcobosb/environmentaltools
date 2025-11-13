@@ -449,8 +449,9 @@ def mean_presence_boundary(data_cube, threshold=None):
 
     Parameters
     ----------
-    data_cube : np.ndarray
+    data_cube : np.ndarray, xarray.DataArray, or xarray.Dataset
         3D array with shape (time, lat, lon) containing spatiotemporal data.
+        If Dataset, uses the first data variable.
     threshold : float, optional
         Presence threshold. If None, uses the global mean of the temporal
         average map.
@@ -474,8 +475,22 @@ def mean_presence_boundary(data_cube, threshold=None):
     >>> data_cube = np.random.random((365, 50, 50))  # Daily data for 1 year
     >>> contours, mean_map = mean_presence_boundary(data_cube, threshold=0.6)
     """
-    # Temporal mean for each cell
-    mean_map = np.mean(data_cube, axis=0)
+    # Handle xarray Dataset/DataArray
+    if hasattr(data_cube, 'values'):
+        # xarray DataArray or Dataset
+        if hasattr(data_cube, 'data_vars'):
+            # It's a Dataset, get first variable
+            var_name = list(data_cube.data_vars.keys())[0]
+            data_array = data_cube[var_name]
+        else:
+            # It's already a DataArray
+            data_array = data_cube
+        
+        # Compute mean using xarray's dim parameter
+        mean_map = data_array.mean(dim='time').values
+    else:
+        # It's a numpy array
+        mean_map = np.mean(data_cube, axis=0)
     
     # Presence threshold
     if threshold is None:
