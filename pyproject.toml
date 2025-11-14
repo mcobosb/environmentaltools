@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "environmentaltools"
-version = "2026.3.1"
+version = "2026.3.1.1"
 authors = [
   { name = "Manuel Cobos", email = "mcobosb@ugr.es" },
 ]
