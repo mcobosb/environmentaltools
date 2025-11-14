@@ -79,10 +79,11 @@
 - [ ] Update reconstruction methods of classification "rbf-multiquadric", "rbf-inverse", "rbf-gaussian", 
         "rbf-linear", "rbf-cubic", "rbf-quintic", "rbf-thin_plate",
         "gp-rbf", "gp-exponential", "gp-quadratic", "gp-white".
-- [ ] heatmap plot rotation to 90 degrees
 
 ### graphics
 - [ ] label <= or >= in windrose plot
+- [X] heatmap plot rotation to 90 degrees
+
 
 ### common
 - [ ] Implement nearest neighbor function separately - Line 361 in read.py
