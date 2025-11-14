@@ -196,6 +196,7 @@ Spatiotemporal Analysis
    covariance_comparison
    anisotropic_spatiotemporal_covariance
    era5_time_series_plot
+   plot_presence_boundary
 
 Utility Functions
 -----------------

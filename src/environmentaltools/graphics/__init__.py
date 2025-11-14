@@ -96,10 +96,12 @@ from .joint import (
 )
 
 # Spatiotemporal plots
+
 from .spatiotemporal import (
     covariance_comparison,
     anisotropic_spatiotemporal_covariance,
     era5_time_series_plot,
+    plot_presence_boundary,
 )
 
 # Utility functions
@@ -185,6 +187,7 @@ __all__ = [
     "covariance_comparison",
     "anisotropic_spatiotemporal_covariance",
     "era5_time_series_plot",
+    "plot_presence_boundary",
     # Utils
     "enable_latex_rendering",
     "show",

@@ -11,6 +11,8 @@
 
 🧪 Examples
 - [ ] Run examples and check that works fine
+- [ ] Revise examples, input data, results and output graphics
+- [ ] Reduce size of input data for examples
 - [ ]   · temporal - E05 - multivariate_simulations.py
 - [ ]   · temporal - E06 - multivariate_ensemble_simulation.py
 - [ ]   · temporal - E07 - maximum_dissimilitude_analysis.py
@@ -41,8 +43,6 @@
 - [ ]   · spatial - E02 - mesh_triangulation.py
 - [ ]   · spatial - E03 - coastline_from_imagery.py
 - [ ]   · risk - E01 - compute_economic_index.py
-- [ ] Revise examples, input data, results and output graphics
-- [ ] Reduce size of input data for examples
 
 
 ## 📂 Module-specific TODOs
@@ -55,9 +55,11 @@
 - [ ] Generalize the function for others satellite products
 
 ### spatiotemporal.raster.analysis
-- [ ] Check that level series files exist - Line 67
-- [ ] Validate that max_level has data for all months and years - Line 67
-- [ ] Implement additional pre-treatment steps as required - Line 227
+- [X] Check that level series files exist
+- [X] Validate that max_level has data for all months and years
+- [X] Implement additional pre-treatment steps as required
+- [ ] Add 
+
 
 ### temporal
 - [X] Update statistical_fit and its dependencies
@@ -77,6 +79,10 @@
 - [ ] Update reconstruction methods of classification "rbf-multiquadric", "rbf-inverse", "rbf-gaussian", 
         "rbf-linear", "rbf-cubic", "rbf-quintic", "rbf-thin_plate",
         "gp-rbf", "gp-exponential", "gp-quadratic", "gp-white".
+- [ ] heatmap plot rotation to 90 degrees
+
+### graphics
+- [ ] label <= or >= in windrose plot
 
 ### common
 - [ ] Implement nearest neighbor function separately - Line 361 in read.py
@@ -94,3 +100,7 @@
 
 ### spectral
 - [ ] Reduce harmonic analysis and reconstruction using pyTMD
+
+## 📂 Test
+- [ ] Functionality tests to be passed before any update
+- [ ] Integration tests

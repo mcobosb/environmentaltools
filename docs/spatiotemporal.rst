@@ -222,3 +222,5 @@ binary matrix generation for threshold exceedances, input validation, and NetCDF
    post_treatment
    binary_matrix
    analysis
+   save_results
+   load_results

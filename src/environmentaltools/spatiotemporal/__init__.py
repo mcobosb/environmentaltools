@@ -136,12 +136,15 @@ from environmentaltools.spatiotemporal.multicriteria import (
 )
 
 # Raster analysis
+
 from environmentaltools.spatiotemporal.raster import (
     check_inputs,
     post_treatment,
     binary_matrix,
     analysis,
     calculate_temporal_differences,
+    save_results,
+    load_results,
 )
 
 __all__ = [
@@ -209,6 +212,8 @@ __all__ = [
     'binary_matrix',
     'analysis',
     'calculate_temporal_differences',
+    'save_results',
+    'load_results',
 ]
 
 
