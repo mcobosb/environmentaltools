@@ -187,26 +187,23 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
                 "Dataset has negative values. Check that the chosen distribution functions adequately fit negative values."
             )
 
-    if (parameters["type"] == "circular") & ("ws_ps" not in parameters.keys()):
+    if (parameters["type"] == "circular"):
         # Transform angles to radian
-        df = np.deg2rad(df)
-        # Compute the percentile of change between probability models
-        ecdf = utils.ecdf(df, parameters["var"], no_perc=1000)
-        # Smooth the ecdf
-        ecdf["soft"] = utils.smooth_1d(ecdf[parameters["var"]], 100)
-        # Compute the difference
-        ecdf["dif"] = ecdf["soft"].diff()
-        # Obtain the index of the max
-        max_ = utils.max_moving_window(ecdf["dif"], 250)
-        parameters["ws_ps"] = [max_.index[0]]
+        df[parameters["var"]] = np.deg2rad(df[parameters["var"]])
+        if ("ws_ps" not in parameters.keys()):
+            # Compute the percentile of change between probability models
+            ecdf = utils.ecdf(df, parameters["var"], no_perc=1000)
+            # Smooth the ecdf
+            ecdf["soft"] = utils.smooth_1d(ecdf[parameters["var"]], 100)
+            # Compute the difference
+            ecdf["dif"] = ecdf["soft"].diff()
+            # Obtain the index of the max
+            max_ = utils.max_moving_window(ecdf["dif"], 250)
+            parameters["ws_ps"] = [max_.index[0]]
 
     parameters["verbose"] = verbose
     # Check that the input dictionary is well defined
     parameters = check_marginal_params(parameters)
-
-    # Transform angles into radians
-    if parameters["type"] == "circular":
-        df[parameters["var"]] = np.deg2rad(df[parameters["var"]])
 
     # Normalized the data using one of the normalization method if it is required
     if parameters["transform"]["make"]:
