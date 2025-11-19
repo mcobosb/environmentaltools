@@ -177,6 +177,8 @@ def stationary_analysis(df: pd.DataFrame, param: dict):
                 res, _ = utils.nonstationary_ecdf(
                     df, param["var"], pemp=param["ws_ps"]
                 )
+                # Rename columns to u1, u2, etc ...
+                res.rename(columns={col: f"u{i+1}" for i, col in enumerate(res.columns)}, inplace=True)
                 if len(param["ws_ps"]) == 1:
                     res.columns = ["u1"]
                     df["u1"] = 0.0
