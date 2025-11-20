@@ -168,6 +168,10 @@ def storm_timeseries(
         len(variables), 1, figsize=(12, len(variables) * 2), sharex=True
     )
 
+    # Transform ax to list if only one variable
+    if len(variables) == 1:
+        ax = [ax]
+
     for i, j in enumerate(variables):
         if isinstance(df_obs, dict):
             for key in df_obs.keys():
