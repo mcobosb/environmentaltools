@@ -192,7 +192,7 @@ def fit_marginal_distribution(df: pd.DataFrame, parameters: dict, verbose: bool 
         df[parameters["var"]] = np.deg2rad(df[parameters["var"]])
         if ("ws_ps" not in parameters.keys()):
             # Compute the percentile of change between probability models
-            ecdf = utils.ecdf(df, parameters["var"], no_perc=1000)
+            ecdf = utils.ecdf(df, parameters["var"], num_percentiles=1000)
             # Smooth the ecdf
             ecdf["soft"] = utils.smooth_1d(ecdf[parameters["var"]], 100)
             # Compute the difference
