@@ -34,12 +34,13 @@ autodoc_mock_imports = [
     "cartopy",
     "timescale",
     "loguru",
-    "intake_esgf"
+    "intake_esgf",
+    "psutil",
 ]
 
 project = "environmentaltools"
 author = "Manuel Cobos"
-release = "2026.0.1"
+release = "3.2.0"
 
 html_theme = "sphinx_rtd_theme"
 
