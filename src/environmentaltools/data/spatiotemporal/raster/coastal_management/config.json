@@ -1,0 +1,40 @@
+{
+  "_comment": "Configuration file for raster analysis include in environmental tools python package",
+  
+  "project": {
+    "name": "Almeria-01-005",
+    "no_sims": 10,
+    "initial_year": 2020,
+    "final_year": 2050,
+    "input_path": "src/environmentaltools/data/spatiotemporal/raster/coastal_management/DTM/",
+    "output_path": "src/environmentaltools/data/spatiotemporal/raster/coastal_management/results/",
+    "crs": "EPSG:25830",
+    "refinement": 1,
+    "n_workers": 4,
+    "index": "directional_influence"
+  },
+  
+  "temporal": {
+    "seasons": ["TA", "TB", "AN"],
+    "TA": [4, 5, 6, 7, 8, 9],
+    "TB": [1, 2, 3, 10, 11, 12]
+  },
+  
+  "presence_boundary": {
+    "variable": "elevation",
+    "temporal": "elevation",
+    "percentiles": ["5", "25", "50", "75", "95"]
+  },
+
+  "influence_extent": {
+    "variable": "elevation",
+    "temporal": [1.5, 1.75, 2.0, 2.5],
+    "horizon_times": ["2025/01/01", "2030/01/01", "2035/01/01", "2050/01/01"] 
+  },
+
+  "directional_influence": {
+    "variable": "elevation",
+    "temporal": "elevation",
+    "percentiles": ["5", "25", "50", "75", "95"]
+  }
+}
