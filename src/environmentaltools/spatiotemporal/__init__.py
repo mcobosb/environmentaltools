@@ -138,11 +138,16 @@ from environmentaltools.spatiotemporal.multicriteria import (
 # Raster analysis
 
 from environmentaltools.spatiotemporal.raster import (
+    largest_region_from_field,
+    preprocess,
     check_inputs,
-    post_treatment,
-    binary_matrix,
+    compute_contours,
     analysis,
-    calculate_temporal_differences,
+    obtain_geometry,
+    save_layer,
+    save_contours,
+    save_arrays_to_netcdf,
+    # binary_matrix,
     save_results,
     load_results,
 )
@@ -207,11 +212,16 @@ __all__ = [
     'create_topsis_maps',
     
     # Raster
+    'largest_region_from_field',
+    'preprocess',
     'check_inputs',
-    'post_treatment',
-    'binary_matrix',
+    'compute_contours',
     'analysis',
-    'calculate_temporal_differences',
+    'obtain_geometry',
+    'save_layer',
+    'save_contours',
+    'save_arrays_to_netcdf',
+    # 'binary_matrix',
     'save_results',
     'load_results',
 ]
