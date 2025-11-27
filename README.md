@@ -20,11 +20,12 @@ It is compound by a list of subpackages that focus on:
 
 Each module has several dependencies, so it is recommended to partially install the packages required after the creation of a virtual environment. The basic installation comprises the packages given in Table 1 (**basic installation**) To install lonely an extra package the name of the environmentaltools package given in the Table 1 (**package name**) is required. That can be done:
 
-`python -m venv environmentaltools`  
+`python -m venv environmentaltools` # or using conda (you should install it previously) you can create a global environmental package `conda create -n env_name python=3.13`
+`Scripts/activate`# or using conda `conda activate env_name`
 `pip install environmentaltools` # for installing Full Package (common, graphics, temporal, etc.)  
 `pip install -e environmentaltools[download]` # for installing download package  
 `pip install -e environmentaltools[spatiotemporal]` # for installing spatiotemporal package  
-`pip install -e environmentaltools[estuaries,examples]` # for installing both estuaries and examples  
+`pip install -e environmentaltools[processes,spectral]` # for installing both processes and spectral
 
 ## 📊 LaTeX support for figure rendering
 
@@ -73,7 +74,27 @@ The subpackage *temporal* package aimed at providing users with a friendly, gene
 The tools implemented in the package named *temporal* allow to capture the statistical properties of a **non stationary (NS) vector RP** by using **compound or piecewise parametric PMs** to properly describe all the range of values and to **simulate uni- or multivariate time series** with the same random behavior. The statistical parameters of the distributions are assumed to depend on time and are expanded into a Generalized Fourier Series (GFS) [["5"]](#5) in order to reproduce their NS behavior. The applicability of the present approach has been illustrated in several works with different purposes, among others: (i) the observed wave climate variability in the preceding century and expected changes in projections under a climate change scenario [["6"]](#6); (ii) the optimal design and management of an oscillating water column system [["7"]](#7) [["8"]](#8), (iii) the planning of maintenance strategies of coastal structures [["9"]](#9), (iv) the analysis of monthly Wolf sunspot number over a 22 year period [["5"]](#5), and (v) the simulation of estuarine water conditions for the management of the estuary [["10"]](#10).
 
 ### **utils** subpackage
+
 The *utils* subpackage contains a collection of **auxiliary utilities** that support the functionality of other modules within the package. It includes functions for data loading and saving in various formats (NetCDF, CSV, pickle), file reading and writing operations, data manipulation and transformation, xarray dataset utilities, and miscellaneous helper functions. The module provides a consistent interface for common operations across the package, improving code reusability and maintainability.
+
+## 🤝 How to Contribute
+
+Contributions to **environmentaltools** are welcome! Whether you want to improve the code, documentation, examples, or suggest new features, your input is highly valued.
+
+To get started:
+- Please read and follow the guidelines in our [CONTRIBUTORS.md](CONTRIBUTORS.md) file.
+- Submit a pull request with your proposed changes.
+- Add your name and a short description of your contribution to the CONTRIBUTORS.md file.
+
+We appreciate all forms of contribution, including code, documentation, testing, and community support. Thank you for helping make this project better!
+
+## Versioning and CHANGELOG.md
+It is using SemVer (Semantic Versioning) versioning standard that follows the format MAJOR.MINOR.PATCH. The meaning of each number is:
+ - MAJOR: When we make incompatible changes to the public API. E.g., removing or changing functions.
+ - MINOR: When we add new features that are backward compatible.
+ - PATCH: When we fix bugs or make minor improvements without breaking compatibility.
+
+The  CHANGELOG.md file is intended to show the changes we are making in each version along the time.
 
 ## Author's Note
 
