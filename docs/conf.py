@@ -40,7 +40,7 @@ autodoc_mock_imports = [
 
 project = "environmentaltools"
 author = "Manuel Cobos"
-release = "3.2.1"
+release = "3.2.2"
 
 html_theme = "sphinx_rtd_theme"
 
