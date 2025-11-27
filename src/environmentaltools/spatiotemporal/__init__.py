@@ -148,7 +148,6 @@ from environmentaltools.spatiotemporal.raster import (
     save_contours,
     save_arrays_to_netcdf,
     # binary_matrix,
-    save_results,
     load_results,
 )
 
@@ -222,7 +221,6 @@ __all__ = [
     'save_contours',
     'save_arrays_to_netcdf',
     # 'binary_matrix',
-    'save_results',
     'load_results',
 ]
 
