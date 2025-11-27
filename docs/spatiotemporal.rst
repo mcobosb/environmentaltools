@@ -217,10 +217,13 @@ binary matrix generation for threshold exceedances, input validation, and NetCDF
 .. autosummary::
    :toctree: _autosummary
 
-   calculate_temporal_differences
+   largest_region_from_field
+   preprocess
    check_inputs
-   post_treatment
-   binary_matrix
+   compute_contours
    analysis
-   save_results
+   obtain_geometry
+   save_layer
+   save_contours
+   save_arrays_to_netcdf
    load_results

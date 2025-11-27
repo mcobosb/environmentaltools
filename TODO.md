@@ -58,7 +58,7 @@
 - [X] Check that level series files exist
 - [X] Validate that max_level has data for all months and years
 - [X] Implement additional pre-treatment steps as required
-- [ ] Add 
+- [ ] SRC not loaded when QGIS load output NetCDFs 
 
 
 ### temporal
