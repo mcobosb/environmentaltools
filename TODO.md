@@ -4,10 +4,11 @@
 - [X] Include module table and usage examples in README.md
 - [X] Prepare conda-forge recipe for staged-recipes submission
 - [X] Link project to readthedocs
-- [ ] Project to pypi
+- [x] Project to pypi
 
 📦 pyproject.toml
 - [X] Update common dependencies
+- [X] Moved check list lines to CONTRIBUTORS.md
 
 🧪 Examples
 - [ ] Run examples and check that works fine

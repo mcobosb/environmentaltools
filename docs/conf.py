@@ -1,27 +1,28 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath("../src"))
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",       # si usas docstrings estilo Google o NumPy
+    "sphinx.ext.napoleon",  # si usas docstrings estilo Google o NumPy
     "sphinx.ext.viewcode",
-    "sphinx.ext.autosummary",    # opcional: genera resúmenes automáticos
+    "sphinx.ext.autosummary",  # opcional: genera resúmenes automáticos
 ]
 
 autosummary_generate = True
 
 # Suppress warnings for autosummary-generated files not in toctree
-suppress_warnings = ['toc.not_included']
+suppress_warnings = ["toc.not_included"]
 
 # Mock imports for packages that might not be available or require system dependencies
 autodoc_mock_imports = [
-    "cdo", 
-    "earthengine-api", 
+    "cdo",
+    "earthengine-api",
     "ee",
-    "geemap", 
-    "skimage", 
-    "pyTMD", 
+    "geemap",
+    "skimage",
+    "pyTMD",
     "pytmd",
     "utide",
     "folium",
@@ -40,7 +41,6 @@ autodoc_mock_imports = [
 
 project = "environmentaltools"
 author = "Manuel Cobos"
-release = "3.2.3"
+release = "3.2.4"
 
 html_theme = "sphinx_rtd_theme"
-
