@@ -53,6 +53,7 @@ dependencies = [
     "openpyxl",
     "pandas",
     "pillow",
+    "psutil", 
     "pydap",  # download module
     "pymcdm",  # spatiotemporal/multicriteria module
     "pypdf2",
