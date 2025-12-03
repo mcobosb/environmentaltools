@@ -21,6 +21,8 @@ import importlib.util
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 from urllib.request import urlretrieve
+import zipfile
+import tempfile
 
 # Third-party imports
 import matplotlib.pyplot as plt
@@ -332,23 +334,27 @@ def check_and_download_tidal_model(model_name: str, database_path: str) -> tuple
     model_info = {
         'EOT20': {
             'files': ['EOT20_load_tides.nc', 'EOT20_ocean_tides.nc'],
-            'url_base': 'https://data.isimip.org/10.48364/ISIMIP.598515/',
+            'directory': 'EOT20',  # Expected directory structure
+            'url_base': 'https://www.seanoe.org/data/00683/79489/data/85762.zip',
             'downloadable': True,
             'format': 'netcdf'
         },
         'FES2014': {
             'files': ['ocean_tide/*nc'],
+            'directory': None,
             'url': 'https://www.aviso.altimetry.fr/',
             'downloadable': False,
             'format': 'FES'
         },
         'GOT4.10': {
             'files': ['GOT4.10c*'],
+            'directory': None,
             'downloadable': False,
             'format': 'GOT'
         },
         'TPXO9': {
             'files': ['TPXO9*'],
+            'directory': None,
             'downloadable': False,
             'format': 'OTIS'
         }
@@ -364,7 +370,14 @@ def check_and_download_tidal_model(model_name: str, database_path: str) -> tuple
     
     info = model_info[model_name]
     
-    # Check if model files already exist
+    # Check if model directory and files already exist (more robust check)
+    if info.get('directory'):
+        model_dir = db_path / info['directory']
+        if model_dir.exists() and list(model_dir.rglob("*.nc")):
+            logger.info(f"Model {model_name} directory already exists with NetCDF files in {model_dir}")
+            return True, info['format']
+    
+    # Check if model files already exist (fallback pattern-based check)
     model_files_exist = False
     for pattern in info['files']:
         if '*' in pattern:
@@ -390,16 +403,84 @@ def check_and_download_tidal_model(model_name: str, database_path: str) -> tuple
     
     # Download EOT20
     if model_name == 'EOT20':
+        # Check if EOT20 directory already exists with files
+        eot20_path = db_path / 'EOT20'
+        if eot20_path.exists() and list(eot20_path.rglob("*.nc")):
+            logger.info(f"Model {model_name} directory already exists with NetCDF files in {eot20_path}")
+            return True, info['format']
+        
         logger.info(f"Downloading {model_name} model files...")
         try:
-            for filename in info['files']:
-                url = f"{info['url_base']}{filename}"
-                output_file = db_path / filename
-                logger.info(f"Downloading {filename}...")
-                urlretrieve(url, output_file)
-                logger.info(f"Downloaded {filename}")
-            logger.info(f"{model_name} downloaded successfully")
+            # Download the main ZIP file to a temporary location
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                main_zip_file = temp_path / "EOT20.zip"
+                
+                logger.info(f"Downloading main ZIP file from {info['url_base']}. This will take a few minutes (2GB).")
+                urlretrieve(info['url_base'], main_zip_file)
+                logger.info(f"Downloaded main ZIP file")
+                
+                # Extract the main ZIP
+                logger.info("Extracting main ZIP file...")
+                with zipfile.ZipFile(main_zip_file, 'r') as zip_ref:
+                    zip_ref.extractall(temp_path)
+                
+                # Find the EOT20 root directory (should be at temp_path/EOT20 or similar)
+                eot20_dirs = [d for d in temp_path.iterdir() if d.is_dir()]
+                if not eot20_dirs:
+                    raise FileNotFoundError("No directories found after extracting main ZIP")
+                
+                # Assume first directory is the model directory (e.g., EOT20)
+                model_root = eot20_dirs[0]
+                logger.info(f"Found model directory: {model_root.name}")
+                
+                # Find and extract any nested ZIP files in place (maintaining structure)
+                logger.info("Searching for nested ZIP files...")
+                nested_zips = list(model_root.rglob("*.zip"))
+                
+                if nested_zips:
+                    logger.info(f"Found {len(nested_zips)} nested ZIP file(s)")
+                    for nested_zip in nested_zips:
+                        logger.info(f"Extracting {nested_zip.name}...")
+                        # Extract in the same directory where the ZIP is located
+                        extract_dir = nested_zip.parent
+                        with zipfile.ZipFile(nested_zip, 'r') as zip_ref:
+                            zip_ref.extractall(extract_dir)
+                        # Remove the ZIP file after extraction
+                        nested_zip.unlink()
+                
+                # Copy the entire model directory to database path, preserving folder hierarchy
+                logger.info(f"Copying {model_root.name} to {db_path} maintaining folder structure...")
+                import shutil
+                
+                target_model_dir = db_path / model_root.name
+                
+                # Find all files and directories to copy (exclude temporary ZIP files)
+                for item in model_root.rglob("*"):
+                    if item.is_file() and not item.name.endswith('.zip'):
+                        # Calculate relative path from model_root directory
+                        rel_path = item.relative_to(model_root)
+                        target_path = target_model_dir / rel_path
+                        
+                        # Create parent directories if needed
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copy file
+                        logger.info(f"Copying {model_root.name}/{rel_path}...")
+                        shutil.copy2(item, target_path)
+                
+                # Verify .nc files were extracted
+                nc_files = list(db_path.rglob("*.nc"))
+                if not nc_files:
+                    raise FileNotFoundError("No .nc files found after extraction")
+                
+                logger.info(f"Successfully installed {len(nc_files)} NetCDF file(s)")
+                for nc_file in nc_files:
+                    logger.info(f"  - {nc_file.relative_to(db_path)}")
+                
+            logger.info(f"{model_name} downloaded and installed successfully")
             return True, info['format']
+            
         except Exception as e:
             logger.error(f"Failed to download {model_name}: {str(e)}")
             logger.info("You can download EOT20 manually from: https://doi.org/10.17882/79489")
@@ -469,10 +550,13 @@ def configure_tidal_model(
             model_format = 'FES'
     
     # Configure model using modern pyTMD API
+    # EOT20 files are not compressed after extraction, set compressed=False
+    is_compressed = model_format not in ['netcdf']  # netcdf format (EOT20) is not compressed
+    
     model = pyTMD.io.model(
         database_path,
         format=model_format,
-        compressed=True,
+        compressed=is_compressed,
     ).elevation(model_name)
     
     logger.info(f"Model configured successfully with {len(model.constituents)} constituents")
@@ -517,17 +601,17 @@ def generate_datetime_series_from_range(
         
         # Generate datetime index using pandas
         start_datetime = pd.Timestamp(start_date)
-        end_datetime = pd.Timestamp(end_date) + pd.Timedelta(days=1)  # Include end date
+        end_datetime = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(minutes=resolution_minutes)
         
         datetime_index = pd.date_range(
             start=start_datetime,
             end=end_datetime,
             freq=f'{resolution_minutes}min',
-            inclusive='left'  # Exclude the very last point to avoid going into next day
-        )[:-1]  # Remove last point to stay within the range
+            inclusive='both'
+        )
         
-        # Convert to pyTMD time format (days since some reference)
-        tide_time = np.array([(dt - pd.Timestamp('1858-11-17')).total_seconds() / 86400.0 
+        # Convert to pyTMD time format (days since 1992-01-01T00:00:00 UTC for ocean tides)
+        tide_time = np.array([(dt - pd.Timestamp('1992-01-01')).total_seconds() / 86400.0 
                              for dt in datetime_index])
         
         logger.info(f"Generated {len(datetime_index)} time points")
