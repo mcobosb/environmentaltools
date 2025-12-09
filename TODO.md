@@ -39,11 +39,13 @@
 - [ ]   · spectral - E01 - lombscargle_periodogram.py
 - [ ]   · spectral - E02 - fast_fourier_transform.py
 - [ ]   · spectral - E03 - harmonic_analysis_utide.py
-- [ ]   · spectral - E04 - tidal_reconstruction_eot20.py
+- [X]   · spectral - E04 - tidal_reconstruction_eot20.py
 - [ ]   · spatial - E01 - voronoi_diagram.py
 - [ ]   · spatial - E02 - mesh_triangulation.py
 - [ ]   · spatial - E03 - coastline_from_imagery.py
 - [ ]   · risk - E01 - compute_economic_index.py
+- [ ]   · drone - E04 - build_scan_pattern_for_bathymetry_estimations.py
+- [ ]   · drone - E05 - create_missions_for_bathymetry_estimations.py
 
 
 ## 📂 Module-specific TODOs
@@ -55,11 +57,16 @@
 ### download.google-earth-engine
 - [ ] Generalize the function for others satellite products
 
+
+### drone.bathymetry-missions
+- [ ] Create functionality (build scan pattern and create missions) for bathymetry missions from drone videos
+- [ ] Save log INFO of drone functionalities
+
 ### spatiotemporal.raster.analysis
 - [X] Check that level series files exist
 - [X] Validate that max_level has data for all months and years
 - [X] Implement additional pre-treatment steps as required
-- [ ] SRC not loaded when QGIS load output NetCDFs 
+- [X] SRC not loaded when QGIS load output NetCDFs 
 
 
 ### temporal
