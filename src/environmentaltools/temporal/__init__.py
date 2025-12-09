@@ -52,7 +52,7 @@ from .core import (
 
 # Simulation functions
 from .simulation import (
-    simulation,
+    do_simulations,
     check_parameters,
     var_simulation,
     class_seasons,
