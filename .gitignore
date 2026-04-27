@@ -209,3 +209,6 @@ __marimo__/
 docs/_build/
 docs/_autosummary/
 src/environmentaltools/processes/models/
+
+# Tidal model data files (large datasets)
+src/environmentaltools/data/spectral/tidal/EOT20/

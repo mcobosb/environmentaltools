@@ -104,7 +104,7 @@ Simulation Functions
 .. autosummary::
    :toctree: _autosummary
 
-   simulation
+   do_simulations
    check_parameters
    var_simulation
    class_seasons

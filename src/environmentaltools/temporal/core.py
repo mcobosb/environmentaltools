@@ -2261,10 +2261,9 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
                 else:
                     # For piecewise PMs
                     for k, j in enumerate(dfn):
-                        logger.info(
-                            "Computing the cdf numerically | "
+                        print("Computing the cdf numerically | "
                             + str(np.round((k + 1) / len(dfn) * 100, decimals=2))
-                            + " %"
+                            + " %\r", end=""
                         )
                         for i in range(param["no_fun"]):
                             esci = esc[i]

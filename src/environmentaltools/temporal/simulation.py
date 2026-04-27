@@ -52,7 +52,7 @@ def show_init_message():
     return message
 
 
-def simulation(
+def do_simulations(
     param: dict,
     tidalConstituents: dict = None,
     dur_storm_calms: pd.DataFrame = None,
@@ -389,9 +389,9 @@ def simulation(
                 df["eta"] = tidalLevel["h"] + df["mm"]
 
         # Transform radians to angles (circular variables)
-        # for var_ in param["TD"]["vars"]:
-        #    if param[var_]["circular"] == True:
-        #        df[var_] = np.rad2deg(df[var_])
+        for var_ in param["TD"]["vars"]:
+           if param[var_]["type"] == "circular":
+               df[var_] = np.rad2deg(df[var_])
 
         # Include any deterministic timeseries if given
         if "include" in param["TS"]:
@@ -403,7 +403,7 @@ def simulation(
             % (str(nosim + 1).zfill(4), str(param["TS"]["nosim"]).zfill(4))
         )
         # Create the folder for simulations
-        os.makedirs(param["TS"]["folder"], exists_ok=True)
+        os.makedirs(param["TS"]["folder"], exist_ok=True)
 
         # Save simulation file
         if param["TS"]["save_z"]:

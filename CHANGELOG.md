@@ -8,6 +8,11 @@ All relevant project updates are documented here:
 - added func for download marine copernicus data (potinar)
 - update nonstationary functions to fix bug with circular variables (potinar)
 
+## [3.2.5] - 2025-12-09
+### Added
+- bug in temporal simulations transforming into degrees circular variables (mcobosb)
+- bug creating the output directory for simulations (mcobosb)
+
 ## [3.2.0] - 2025-11-27
 ### Added
 - added func for raster indicators (mcobosb)
