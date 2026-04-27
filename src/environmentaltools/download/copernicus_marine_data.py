@@ -2,9 +2,19 @@ import copernicusmarine
 import os
 
 def descargar_copernicus(dataset_id, dataset_version, variables, 
-                                coords, fechas, output_path):
-    """
-    Función estable para descarga de datos de oleaje.
+                        coords, fechas, output_path):
+    """Función estable para descarga de datos de oleaje.
+
+    Args:
+        dataset_id (str): Identifier of the Copernicus dataset.
+        dataset_version (str): Version of the dataset to be downloaded.
+        variables (list): List of variables to include in the subset.
+        coords (dict): Dictionary containing spatial limits ('lon_min', 'lon_max', 'lat_min', 'lat_max').
+        fechas (dict): Dictionary with time range ('inicio', 'fin').
+        output_path (str): Directory path where the file will be saved.
+
+    Returns:
+        None
     """
     if not os.path.exists(output_path):
         os.makedirs(output_path)

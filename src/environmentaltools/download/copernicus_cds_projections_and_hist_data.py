@@ -5,9 +5,18 @@ import pandas as pd
 from pathlib import Path
 from loguru import logger
 from typing import Any, Optional
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 class ProjectionDataConfig:
-    """Configuración estructurada para Proyecciones Climáticas."""
+    """Configuración estructurada para Proyecciones Climáticas.
+
+    Args:
+        config (dict): Configuration dictionary containing variables, experiment, years, and output_directory.
+    """
     def __init__(self, config: dict):
         self.dataset_name = "sis-ocean-wave-timeseries"
         
@@ -21,13 +30,24 @@ class ProjectionDataConfig:
         self.output_directory.mkdir(parents=True, exist_ok=True)
 
 class ProjectionDownloader:
-    """Manejador de descargas para el Climate Data Store."""
+    """Manejador de descargas para el Climate Data Store.
+
+    Args:
+        config (ProjectionDataConfig): Configuration object with dataset and request details.
+    """
     def __init__(self, config: ProjectionDataConfig):
         self.config = config
         self.client = cdsapi.Client()
 
     def download(self, filename: str) -> Optional[Path]:
-        """Ejecuta la descarga desde el servidor de Copernicus."""
+        """Ejecuta la descarga desde el servidor de Copernicus.
+
+        Args:
+            filename (str): Name of the file to be saved.
+
+        Returns:
+            Optional[Path]: Path to the downloaded file or None if the request fails.
+        """
         target_path = self.config.output_directory / filename
         
         request = {
@@ -45,22 +65,13 @@ class ProjectionDownloader:
             logger.error(f"Error en la petición: {e}")
             return None
 
-import os
-import zipfile
-from pathlib import Path
-from typing import Optional
-import numpy as np
-import pandas as pd
-import xarray as xr
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-from loguru import logger
-
 class ProjectionProcessor:
-    """
-    Clase para procesar, filtrar y visualizar proyecciones climáticas de oleaje.
+    """Clase para procesar, filtrar y visualizar proyecciones climáticas de oleaje.
+    
     Maneja archivos ZIP, NetCDF con mallas no estructuradas y visualización cartográfica.
+
+    Args:
+        config (Any): Configuration object containing output directory and experiment metadata.
     """
     
     def __init__(self, config: Any):
@@ -68,7 +79,14 @@ class ProjectionProcessor:
         self.temp_dir = self.config.output_directory / "temp_nc_files"
 
     def _prepare_files(self, file_path: Path) -> str:
-        """Gestiona la descompresión y verifica que los archivos existan."""
+        """Gestiona la descompresión y verifica que los archivos existan.
+
+        Args:
+            file_path (Path): Path to the source file (ZIP or NetCDF).
+
+        Returns:
+            str: Path or glob pattern to the NetCDF files.
+        """
         file_path = Path(file_path)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         
@@ -88,9 +106,15 @@ class ProjectionProcessor:
         return str(file_path)
 
     def plot_data_coverage(self, file_path: Path, extent: list = [-8.0, -1.0, 35.0, 39.0], target_coords: list = None):
-        """
-        Genera figura de la malla, resalta el punto objetivo y calcula la distancia real en km.
-        target_coords: [longitud, latitud]
+        """Genera figura de la malla, resalta el punto objetivo y calcula la distancia real en km.
+
+        Args:
+            file_path (Path): Path to the data file.
+            extent (list, optional): Geographical boundaries [min_lon, max_lon, min_lat, max_lat]. Defaults to [-8.0, -1.0, 35.0, 39.0].
+            target_coords (list, optional): Coordinates to highlight [longitude, latitude]. Defaults to None.
+
+        Returns:
+            None
         """
         path_to_open = self._prepare_files(file_path)
         
@@ -113,7 +137,7 @@ class ProjectionProcessor:
 
             # Dibujar malla base
             ax.scatter(lon_grid_norm, lat_grid, s=1.5, c='red', alpha=0.3, 
-                       transform=ccrs.PlateCarree(), label='Malla del modelo')
+                        transform=ccrs.PlateCarree(), label='Malla del modelo')
 
             if target_coords:
                 t_lon, t_lat = target_coords
@@ -121,7 +145,6 @@ class ProjectionProcessor:
                 t_lon_norm = (t_lon + 180) % 360 - 180
 
                 # 2. CÁLCULO DE DISTANCIA HAVERSINE (en km)
-                # Convertimos todo a radianes
                 phi1, lam1 = np.radians(lat_grid), np.radians(lon_grid_norm)
                 phi2, lam2 = np.radians(t_lat), np.radians(t_lon_norm)
                 
@@ -140,12 +163,10 @@ class ProjectionProcessor:
                 closest_lat = lat_grid[idx_closest]
 
                 # 3. Representación visual
-                # Tu punto (Estrella)
                 ax.scatter(t_lon_norm, t_lat, s=150, c='gold', marker='*', edgecolors='black', 
                            zorder=10, transform=ccrs.PlateCarree(), 
                            label=f'Objetivo: {t_lon}, {t_lat}')
                 
-                # Nodo más cercano (Círculo)
                 ax.scatter(closest_lon, closest_lat, s=100, facecolors='none', edgecolors='blue', 
                            linewidth=2, zorder=11, transform=ccrs.PlateCarree(),
                            label=f'Más cercano (Dist: {min_dist:.2f} km)')
@@ -166,8 +187,15 @@ class ProjectionProcessor:
 
     
     def process_to_dataframe(self, file_path: Path, lat_bounds: list = None, lon_bounds: list = None) -> Optional[pd.DataFrame]:
-        """
-        Convierte los archivos NetCDF a un DataFrame de Pandas filtrado por coordenadas.
+        """Convierte los archivos NetCDF a un DataFrame de Pandas filtrado por coordenadas.
+
+        Args:
+            file_path (Path): Path to the source file (ZIP or NetCDF).
+            lat_bounds (list, optional): Latitudinal range [min_lat, max_lat]. Defaults to None.
+            lon_bounds (list, optional): Longitudinal range [min_lon, max_lon]. Defaults to None.
+
+        Returns:
+            Optional[pd.DataFrame]: Filtered DataFrame with wave data or None if processing fails.
         """
         path_to_open = self._prepare_files(file_path)
         
