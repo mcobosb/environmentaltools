@@ -268,7 +268,7 @@ def bootstrapping(peaks, tri, method, func, nyears, nosim, resample):
         for j in range(0, nosim):
             logger.info(
                 "Computing bootstrapping of {} simulations using {} and non-parametric methods for {} probability model. It will take a while.".format(
-                    str(nosim), method, func.name
+                    str(nosim), method, func
                 )
             )
             boot[j, :] = probability_model_fit(
@@ -638,7 +638,7 @@ def pot_method(
         "Computing POT analysis for a window size of "
         + str(df.index[window_size] - df.index[0])
     )
-    df_max_events = utils.max_moving(df[var_], window_size)
+    df_max_events = utils.max_moving_window(df[var_], window_size)
     event = df_max_events.loc[
         df_max_events[var_] > np.percentile(df[var_], 90), var_
     ].values[:]
