@@ -2,6 +2,12 @@
 
 All relevant project updates are documented here:
 
+## [3.2.6] - 2026-04-27
+### Added
+- added environment.yml file (potinar)
+- added func for download marine copernicus data (potinar)
+- update nonstationary functions to fix bug with circular variables (potinar)
+
 ## [3.2.0] - 2025-11-27
 ### Added
 - added func for raster indicators (mcobosb)

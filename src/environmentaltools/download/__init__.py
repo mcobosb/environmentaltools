@@ -177,15 +177,23 @@ from .open_street_images import (
 )
 
 # Marine Copernicus functions
-from .copernicus_cds_era5 import (
+from .copernicus_cds_projections_and_hist_data import (
+    ProjectionDataConfig,
+    ProjectionDownloader,
+    ProjectionProcessor,
+)
+
+from .copernicus_marine_data import (
+    descargar_copernicus,
+)
+
+from .marine_copernicus import (
     ERA5DataDownloadConfig,
     ERA5DataDownloader,
     ERA5DataProcessor,
     download_era5_data,
 )
 
-from .copernicus_marine_data import (
-descargar_copernicus)
 
 __all__ = [
     # CORDEX data (hybrid: intake-esgf + PyESGF fallback)

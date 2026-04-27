@@ -112,3 +112,47 @@ Main Functions
    :toctree: _autosummary
 
    download_era5_data
+
+
+Marine Copernicus (Projections)
+-------------------------------
+
+Classes and functions for downloading projections data from the Copernicus Climate Data Store.
+
+Configuration
+~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   ProjectionDataConfig
+
+Download
+~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   ProjectionDownloader
+
+Processing
+~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   ProjectionProcessor
+
+
+Copernicus Marine (General)
+---------------------------
+
+Main Functions
+~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: _autosummary
+
+   descargar_copernicus
+
+

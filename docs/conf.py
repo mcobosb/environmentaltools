@@ -37,10 +37,14 @@ autodoc_mock_imports = [
     "loguru",
     "intake_esgf",
     "psutil",
+    "zipfile",
+    "Any",
+    "Optional",
+    "copernicusmarine",
 ]
 
 project = "environmentaltools"
 author = "Manuel Cobos"
-release = "3.2.4"
+release = "3.2.6"
 
 html_theme = "sphinx_rtd_theme"

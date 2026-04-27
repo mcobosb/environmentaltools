@@ -32,6 +32,9 @@ Please include your GitHub username and a short description of your contribution
 - **Manuel Cobos** – Project lead, architecture, and core development  
   [@mcobosb](https://github.com/mcobosb) - Environmental Fluid Dynamics Groug (https://dinamicambiental.es),  Andalusian Institute for Earth System Research (IISTA), Department of Structural Engineering and Fluid Mechanics, University of Granada.
 
+- **Pedro Otiñar** – Project development  
+  [@potinar](https://github.com/potinar) - Environmental Fluid Dynamics Groug (https://dinamicambiental.es),  Andalusian Institute for Earth System Research (IISTA), Department of Structural Engineering and Fluid Mechanics, University of Granada.
+
 ---
 
 ## Community Contributors
