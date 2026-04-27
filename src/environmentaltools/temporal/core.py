@@ -200,7 +200,8 @@ def stationary_analysis(df: pd.DataFrame, param: dict):
                             df.loc[iutail, param["var"]] - df.loc[iutail, "u1"]
                         )
                     else:
-                        part = param["fun"][1].fit(df.loc[iutail, param["var"]])
+                        part = param["fun"][1].fit(
+                            df.loc[iutail, param["var"]])
                     par0 = np.hstack([par0, parb, part]).tolist()
                     if not param["fix_percentiles"]:
                         par0 = np.hstack([par0, st.norm.ppf(param["ws_ps"])])
@@ -217,18 +218,23 @@ def stationary_analysis(df: pd.DataFrame, param: dict):
 
                     if not param["type"] == "circular":
                         parl = param["fun"][0].fit(
-                            df.loc[iltail, "u1"] - df.loc[iltail, param["var"]]
+                            df.loc[iltail, param["var"]]
                         )
                     else:
-                        parl = param["fun"][0].fit(df.loc[iltail, param["var"]])
-                    parb = param["fun"][1].fit(df.loc[ibody, param["var"]])
+                        parl = param["fun"][0].fit(
+                            df.loc[iltail, param["var"]]
+                        )
+                    
+                    parb = param["fun"][1].fit(df.loc[ibody, param["var"]] - df.loc[ibody, "u1"])
 
                     if not param["type"] == "circular":
                         part = param["fun"][2].fit(
                             df.loc[iutail, param["var"]] - df.loc[iutail, "u2"]
                         )
                     else:
-                        part = param["fun"][2].fit(df.loc[iutail, param["var"]])
+                        part = param["fun"][2].fit(
+                            df.loc[iutail, param["var"]] - df.loc[iutail, "u2"])
+                    
                     par0 = np.hstack([par0, parl, parb, part]).tolist()
 
                     if not param["fix_percentiles"]:
@@ -913,65 +919,65 @@ def matching_lower_bound(par: dict):
     return constraints_
 
 
-# def matching_upper_bound(par: dict):
-#     """Matching conditions between two probability models (PMs). Upper refers to the
-#     low tail-body PMs for fitting three PMs.
+def matching_upper_bound(par: dict):
+    """Matching conditions between two probability models (PMs). Upper refers to the
+    low tail-body PMs for fitting three PMs.
 
-#     Args:
-#         par (dict): parameters of the usual dictionary format
+    Args:
+        par (dict): parameters of the usual dictionary format
 
-#     Returns:
-#         [type]: [description]
-#     """
-#     # ----------------------------------------------------------------------------------
-#     # Obtaining the parameters
-#     # ----------------------------------------------------------------------------------
-#     t_expans = params_t_expansion(
-#         mode, param, df.sort_values(by="n").drop_duplicates(subset=["n"]).loc[:, "n"]
-#     )
-#     df_, _ = get_params(
-#         df.sort_values(by="n").drop_duplicates(subset=["n"]),
-#         param,
-#         par,
-#         mode,
-#         t_expans,
-#     )
+    Returns:
+        [type]: [description]
+    """
+    # ----------------------------------------------------------------------------------
+    # Obtaining the parameters
+    # ----------------------------------------------------------------------------------
+    t_expans = params_t_expansion(
+        mode, param, df.sort_values(by="n").drop_duplicates(subset=["n"]).loc[:, "n"]
+    )
+    df_, _ = get_params(
+        df.sort_values(by="n").drop_duplicates(subset=["n"]),
+        param,
+        par,
+        mode,
+        t_expans,
+    )
 
-#     # ----------------------------------------------------------------------------------
-#     # Applying the restrictions along "n"
-#     # ----------------------------------------------------------------------------------
-#     if not param["reduction"]:
-#         # ------------------------------------------------------------------------------
-#         # Using two PMs, the body PM is the first one and the second PM is used as upper
-#         # tail model. Using three PMS, the body PM is the center one.
-#         # ------------------------------------------------------------------------------
-#         f_body, f_tail = 1, 2
+    # ----------------------------------------------------------------------------------
+    # Applying the restrictions along "n"
+    # ----------------------------------------------------------------------------------
+    if not param["reduction"]:
+        # ------------------------------------------------------------------------------
+        # Using two PMs, the body PM is the first one and the second PM is used as upper
+        # tail model. Using three PMS, the body PM is the center one.
+        # ------------------------------------------------------------------------------
+        f_body, f_tail = 1, 2
 
-#         if param["no_param"][f_body] == 2:
-#             fc_u2 = param["fun"][f_body].pdf(
-#                 df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"]
-#             )
-#             Fc_u2 = param["fun"][f_body].cdf(
-#                 df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"]
-#             )
-#         else:
-#             fc_u2 = param["fun"][f_body].pdf(
-#                 df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"], df_[f_body]["e"]
-#             )
-#             Fc_u2 = param["fun"][f_body].cdf(
-#                 df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"], df_[f_body]["e"]
-#             )
+        if param["no_param"][f_body] == 2:
+            fc_u2 = param["fun"][f_body].pdf(
+                df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"]
+            )
+            Fc_u2 = param["fun"][f_body].cdf(
+                df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"]
+            )
+        else:
+            fc_u2 = param["fun"][f_body].pdf(
+                df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"], df_[f_body]["e"]
+            )
+            Fc_u2 = param["fun"][f_body].cdf(
+                df_[f_body]["u2"], df_[f_body]["s"], df_[f_body]["l"], df_[f_body]["e"]
+            )
 
-#         if param["no_param"][f_tail] == 2:
-#             ft_u2 = -param["fun"][f_tail].pdf(0, df_[f_tail]["s"], df_[f_tail]["l"])
-#         else:
-#             ft_u2 = -param["fun"][f_tail].pdf(
-#                 0, df_[f_tail]["s"], df_[f_tail]["l"], df_[f_tail]["e"]
-#             )
+        if param["no_param"][f_tail] == 2:
+            ft_u2 = -param["fun"][f_tail].pdf(0, df_[f_tail]["s"], df_[f_tail]["l"])
+        else:
+            ft_u2 = -param["fun"][f_tail].pdf(
+                0, df_[f_tail]["s"], df_[f_tail]["l"], df_[f_tail]["e"]
+            )
 
-#     constraints_ = np.sqrt(1 / len(ft_u2) * np.sum((ft_u2 * Fc_u2 - fc_u2) ** 2))
+    constraints_ = np.sqrt(1 / len(ft_u2) * np.sum((ft_u2 * Fc_u2 - fc_u2) ** 2))
 
-#     return constraints_
+    return constraints_
 
 
 def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
@@ -1001,6 +1007,22 @@ def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
                 par0[i] + param_["optimization"]["bounds"],
             )
 
+
+        # reducimos el rango de variabilidad del umbral superior
+        if param_["reduction"]:
+            if not param_["fix_percentiles"]:
+                    # El umbral superior (u2 o u_tail) es siempre el último parámetro
+                    idx_upper_threshold = -1 
+                    
+                    # Convertimos los percentiles deseados (0.85 y 0.95) a Z-scores
+                    # st.norm.ppf(0.85) approx 1.036
+                    # st.norm.ppf(0.95) approx 1.645
+                    lower_limit_z = st.norm.ppf(0.88)
+                    upper_limit_z = st.norm.ppf(0.99)
+                    
+                    # Sobrescribimos los bnds para este parámetro específico
+                    bnds[idx_upper_threshold] = (lower_limit_z, upper_limit_z)
+
     global df, param, mode, t_expans
     df, param, mode = df_, param_, mode_
     t_expans = params_t_expansion(mode, param, df["n"])
@@ -1021,14 +1043,14 @@ def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
         if param["no_fun"] == 1:
             constraints_ = []
         elif param["no_fun"] == 2:
-            constraints_ = []  # [
-            #     {"type": "eq", "fun": lambda x: matching_lower_bound(x)},
-            # ]
+            constraints_ = [
+                {"type": "eq", "fun": lambda x: matching_lower_bound(x)},
+            ]
         else:
-            constraints_ = []  # [
-            #     {"type": "eq", "fun": lambda x: matching_lower_bound(x)},
-            #     {"type": "eq", "fun": lambda x: matching_upper_bound(x)},
-            # ]
+            constraints_ = [
+                {"type": "eq", "fun": lambda x: matching_lower_bound(x)},
+                {"type": "eq", "fun": lambda x: matching_upper_bound(x)},
+            ]
     else:
         constraints_ = []
 
@@ -1043,7 +1065,8 @@ def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
                 par0,
                 args=(df, mode, param, t_expans),
                 bounds=bnds,
-                constraints=constraints_,
+                # constraints=constraints_,
+                constraints=[],
                 method="SLSQP",
                 options={
                     "ftol": param["optimization"]["ftol"],
@@ -1340,11 +1363,11 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         + np.log(esc[0]),
                     #     ]
                     # )
-                    lpdf += param["fun"][0].logpdf(
-                        df[0].loc[iltail, "u1"] - df[0].loc[iltail, param["var"]],
+                    lpdf += np.sum(param["fun"][0].logpdf(
+                        df[0].loc[iltail, param["var"]],
                         df[0].loc[iltail, "s"],
                         df[0].loc[iltail, "l"],
-                    ) + np.log(esc[0])
+                    ) + np.log(esc[0]))
                 else:
                     # lpdf = np.hstack(
                     #     [
@@ -1359,12 +1382,12 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         + np.log(esc[0]),
                     #     ]
                     # )
-                    lpdf += param["fun"][0].logpdf(
+                    lpdf += np.sum(param["fun"][0].logpdf(
                         df[0].loc[iltail, "u1"] - df[0].loc[iltail, param["var"]],
                         df[0].loc[iltail, "s"],
                         df[0].loc[iltail, "l"],
                         df[0].loc[iltail, "e"],
-                    ) + np.log(esc[0])
+                    ) + np.log(esc[0]))
 
                 if param["no_param"][1] == 2:
                     # lpdf = np.hstack(
@@ -1377,11 +1400,11 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         ),
                     #     ]
                     # )
-                    lpdf += param["fun"][1].logpdf(
-                        df[1].loc[ibody, param["var"]],
+                    lpdf += np.sum(param["fun"][1].logpdf(
+                        df[1].loc[ibody, param["var"]] - df[1].loc[ibody, "u1"],
                         df[1].loc[ibody, "s"],
                         df[1].loc[ibody, "l"],
-                    )
+                    ))
                 else:
                     # lpdf = np.hstack(
                     #     [
@@ -1394,12 +1417,12 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         ),
                     #     ]
                     # )
-                    lpdf += param["fun"][1].logpdf(
+                    lpdf += np.sum(param["fun"][1].logpdf(
                         df[1].loc[ibody, param["var"]],
                         df[1].loc[ibody, "s"],
                         df[1].loc[ibody, "l"],
                         df[1].loc[ibody, "e"],
-                    )
+                    ))
 
                 if param["no_param"][2] == 2:
                     # lpdf = np.hstack(
@@ -1414,11 +1437,11 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         + np.log(esc[2]),
                     #     ]
                     # )
-                    lpdf += param["fun"][2].logpdf(
+                    lpdf += np.sum(param["fun"][2].logpdf(
                         df[2].loc[iutail, param["var"]] - df[2].loc[iutail, "u2"],
                         df[2].loc[iutail, "s"],
                         df[2].loc[iutail, "l"],
-                    ) + np.log(esc[2])
+                    ) + np.log(esc[2]))
                 else:
                     # lpdf = np.hstack(
                     #     [
@@ -1433,12 +1456,12 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                     #         + np.log(esc[2]),
                     #     ]
                     # )
-                    lpdf += param["fun"][2].logpdf(
+                    lpdf += np.sum(param["fun"][2].logpdf(
                         df[2].loc[iutail, param["var"]] - df[2].loc[iutail, "u2"],
                         df[2].loc[iutail, "s"],
                         df[2].loc[iutail, "l"],
                         df[2].loc[iutail, "e"],
-                    ) + np.log(esc[2])
+                    ) + np.log(esc[2]))
 
             if (np.isnan(lpdf).any()) | (np.isinf(lpdf).any()):
                 nllf = 1e10
@@ -1501,14 +1524,19 @@ def negative_log_likelihood(par, df, imod, param, t_expans):
                         & (param["type"] == "circular")
                         & (param["scipy"][i] == True)
                     ):
+                        
+
+                        v_zeros = df_["s"] * 0
+                        v_2pi = v_zeros + 2 * np.pi
+
                         en = np.log(
                             param["fun"][i].cdf(
-                                df_["u" + str(i + 1)] * 0 + 2 * np.pi,
+                                v_2pi,
                                 df_["s"],
                                 df_["l"],
                             )
                             - param["fun"][i].cdf(
-                                df_["u" + str(i)] * 0, df_["s"], df_["l"]
+                                v_zeros, df_["s"], df_["l"]
                             )
                         )
                         # np.log(
@@ -1883,8 +1911,10 @@ def get_params(df: pd.DataFrame, param: dict, par: list, imod: list, t_expans):
         if (
             ((not param["fix_percentiles"]) | (param["constraints"]))
             & (not param["reduction"])
-            & (not param["type"] == "circular")
+            # & (not param["type"] == "circular")
         ):
+            
+
             if param["no_fun"] == 2:
                 if param["no_param"][0] == 2:
                     df[0]["u1"] = param["fun"][0].ppf(esc[0], df[0]["s"], df[0]["l"])
@@ -1993,7 +2023,7 @@ def ppf(df: pd.DataFrame, param: dict):
             # Wheter more than one probability model are given
             # --------------------------------------------------------------------------
             if param["type"] == "circular":
-                data = np.linspace(param["minimax"][0], param["minimax"][1], 100)
+                data = np.linspace(param["minimax"][0], param["minimax"][1], 1000)
             else:
                 data = np.linspace(param["minimax"][0], param["minimax"][1], 1000)
             df[param["var"]] = -1
@@ -2106,7 +2136,7 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
             # More than one PMs
             if ppf:
                 if param["type"] == "circular":
-                    data = np.linspace(param["minimax"][0], param["minimax"][1], 100)
+                    data = np.linspace(param["minimax"][0], param["minimax"][1], 1000)
                 else:
                     data = np.linspace(param["minimax"][0], param["minimax"][1], 1000)
                 dfn = np.sort(df["n"].unique())
@@ -2121,6 +2151,24 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
                     t_expans,
                 )
                 cdf_ = np.zeros([len(dfn), len(data)])
+
+
+                # if len (param["ws_ps"]) == 1:
+
+                #     dff[0]["u1"] = df["u1"]
+                #     dff[1]["u1"] = df["u1"]
+
+                # elif len(param["ws_ps"]) == 2:
+
+                #     dff[0]["u1"] = df["u1"]
+                #     dff[1]["u1"] = df["u1"]
+                #     dff[2]["u1"] = df["u1"]
+
+                #     dff[0]["u2"] = df["u2"]
+                #     dff[1]["u2"] = df["u2"]
+                #     dff[2]["u2"] = df["u2"]
+
+
                 if param["constraints"]:
                     if len(dff) == 2:
                         for k, j in enumerate(dfn):
@@ -2128,7 +2176,7 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
                             fu2 = data > dff[0].loc[j, "u1"]
 
                             if param["no_param"][0] == 2:
-                                cdf_[k, fu1] = param["fun"][0].cdf(
+                                cdf_[k, fu1] = esc[0] * param["fun"][0].cdf(
                                     data[fu1], dff[0].loc[j, "s"], dff[0].loc[j, "l"]
                                 )
                             else:
@@ -2140,8 +2188,8 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
                                 )
 
                             if param["no_param"][1] == 2:
-                                cdf_[k, fu2] = esc[0] + esc[1] * param["fun"][1].cdf(
-                                    data[fu2] - dff[0].loc[j, "u1"],
+                                cdf_[k, fu2] = esc[1] * param["fun"][1].cdf(
+                                    data[fu2],
                                     dff[1].loc[j, "s"],
                                     dff[1].loc[j, "l"],
                                 )
@@ -2162,7 +2210,7 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
 
                             if param["no_param"][0] == 2:
                                 cdf_[k, fu0] = esc[0] * param["fun"][0].cdf(
-                                    dff[0].loc[j, "u1"] - data[fu0],
+                                    data[fu0],
                                     dff[0].loc[j, "s"],
                                     dff[0].loc[j, "l"],
                                 )
@@ -2175,8 +2223,9 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
                                 )
 
                             if param["no_param"][1] == 2:
-                                cdf_[k, fu1] = param["fun"][1].cdf(
-                                    data[fu1], dff[1].loc[j, "s"], dff[1].loc[j, "l"]
+                                cdf_[k, fu1] = esc[0] + esc[1] * param["fun"][1].cdf(
+                                    data[fu1] - dff[1].loc[j, "u1"], 
+                                    dff[1].loc[j, "s"], dff[1].loc[j, "l"]
                                 )
                             else:
                                 cdf_[k, fu1] = param["fun"][1].cdf(
@@ -3004,3 +3053,4 @@ class wrap_norm(st.rv_continuous):
             [type]: [description]
         """
         return "wrap_norm"
+

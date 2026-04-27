@@ -408,7 +408,7 @@ def check_marginal_params(param: dict):
     param["scipy"] = {}
     param["reduction"] = False
     param["no_tot_param"] = 0
-    param["constraints"] = True
+    param["constraints"] = False
 
     logger.info("USER OPTIONS:")
     k = 1
