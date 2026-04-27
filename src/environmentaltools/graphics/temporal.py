@@ -1,6 +1,6 @@
 import datetime
 from itertools import product
-
+import os
 import cmocean
 import matplotlib
 import matplotlib.pyplot as plt
@@ -1155,17 +1155,49 @@ def nonstationary_cdf(
         if param["status"] == "Distribution models fitted succesfully":
             param = utils.string_to_function(param, None)
 
+            if param["fix_percentiles"]:
+
+                # if len(param["ws_ps"]) == 1:
+
+                if (param["type"] == "circular"):
+                    # Transform angles to radian
+                    data[param["var"]] = np.deg2rad(data[param["var"]])
+
+                res_, _ = utils.nonstationary_ecdf(
+                    data, param["var"], wlen = 28/365.25, pemp=param["ws_ps"]
+                )
+                # Rename columns to u1, u2, etc ...
+                res_.rename(columns={col: f"u{i+1}" for i, col in enumerate(res_.columns)}, inplace=True)
+                # res_.columns = ["u1"]
+
+                res_ = res_.sort_index()
+
+
             for i, j in enumerate(pemp):
                 df = pd.DataFrame(np.ones(dt) * pemp[i], index=n, columns=["prob"])
                 df["n"] = n
-                if (param["non_stat_analysis"] == True) | (param["no_fun"] > 1):
-                    res = core.ppf(df, param)
-                else:
-                    res = pd.DataFrame(
-                        param["fun"][0].ppf(df["prob"], *param["par"]),
-                        index=df.index,
-                        columns=[variable],
-                    )
+
+                df = df.sort_values("n")
+                
+                if param["fix_percentiles"]:
+
+                    df = pd.merge_asof(
+                                        df, 
+                                        res_, 
+                                        left_on="n", 
+                                        right_index=True, 
+                                        direction="nearest"
+                                    )
+                
+                if 1:
+                    if (param["non_stat_analysis"] == True) | (param["no_fun"] > 1):
+                        res = core.ppf(df, param)
+                    else:
+                        res = pd.DataFrame(
+                            param["fun"][0].ppf(df["prob"], *param["par"]),
+                            index=df.index,
+                            columns=[variable],
+                        )
 
                 # Transformed timeserie
                 if (not param["transform"]["plot"]) & param["transform"]["make"]:
@@ -1184,7 +1216,7 @@ def nonstationary_cdf(
                         ax.semilogy(
                             res[param["var"]].index,
                             res[param["var"]].values,
-                            color=col_per[i],
+                            color="black",
                             ls=lst,
                             lw=2,
                             label=str(j),
@@ -1203,7 +1235,8 @@ def nonstationary_cdf(
                             ax.plot(
                                 res[param["var"]].index,
                                 np.rad2deg(res[param["var"]].values),
-                                color=col_per[i],
+                                # color=col_per[i],
+                                color="black",
                                 ls=lst,
                                 lw=2,
                                 label=str(j),
@@ -1221,7 +1254,7 @@ def nonstationary_cdf(
                             ax.plot(
                                 res[param["var"]].index,
                                 res[param["var"]].values,
-                                color=col_per[i],
+                                color="black",
                                 ls=lst,
                                 lw=2,
                                 label=str(j),
@@ -2507,42 +2540,27 @@ def pot_lmom(
     nvar,
     file_name: str = None,
 ):
-    """Plot Peaks Over Threshold analysis results using L-moments method.
-
-    Generates a comprehensive visualization of POT analysis including parameter
-    stability, goodness-of-fit statistics, and return period estimates across
-    different threshold values.
-
-    Args:
-        info (dict): Dictionary containing POT analysis results with keys:
-            - 'thresholds': Array of threshold values tested
-            - 'mean_value_lmom': Mean parameter estimates (location, shape, scale)
-            - 'upper_lim', 'lower_lim': Confidence interval bounds
-            - 'au2_lmom': Anderson-Ruiz squared statistic values
-            - 'au2pv_lmom': Complementary p-values (1 - p_value)
-            - 'tr_eval': Return periods evaluated
-            - 'nyears': Number of years in dataset
-        nvar: Variable identifier (currently unused).
-        file_name (str, optional): Path to save the figure. If None, displays
-            interactively. Defaults to None.
-
-    Returns:
-        None: Displays or saves the plot.
-
-    Note:
-        The optimal threshold is automatically selected as the one minimizing
-        the complementary p-value (au2pv_lmom).
-    """
+    """Plot Peaks Over Threshold analysis results using L-moments method."""
     selected_value = info["thresholds"][np.argmin(info["au2pv_lmom"])]
 
-    xlim = (np.floor(np.min(info["thresholds"])), np.ceil(np.max(info["thresholds"])))
+    ntr = np.size(info["tr_eval"])
+    # número de filas dinámico: al menos 3, o tantas como períodos de retorno
+    nrows = max(3, ntr)
+
+    xlim = (np.floor(np.min(info["thresholds"])),
+            np.ceil(np.max(info["thresholds"])))
+
     fig = plt.figure(figsize=(16, 10))
     fig.subplots_adjust(left=0.2, wspace=0.4)
 
     ax = []
-    ax.append(plt.subplot2grid((3, 3), (0, 0)))
-    ax.append(plt.subplot2grid((3, 3), (1, 0)))
-    ax.append(plt.subplot2grid((3, 3), (2, 0)))
+
+    # ------------------------------------------------------------------
+    # Columna izquierda: parámetros (3 filas superiores)
+    # ------------------------------------------------------------------
+    ax.append(plt.subplot2grid((nrows, 3), (0, 0)))  # 0: location
+    ax.append(plt.subplot2grid((nrows, 3), (1, 0)))  # 1: shape
+    ax.append(plt.subplot2grid((nrows, 3), (2, 0)))  # 2: scale*
 
     # Location parameter plot using L-moments
     ax[0].set_title(r"\textbf{PARAMETERS USING L-MOMENTS}", fontsize=10)
@@ -2596,13 +2614,18 @@ def pot_lmom(
     ax[2].set_xlim(xlim)
     ax[2].yaxis.set_label_coords(-0.2, 0.5)
 
-    # Return period quantile plots
-    for i in range(0, np.size(info["tr_eval"])):
-        ax.append(plt.subplot2grid((3, 3), (0 + i, 1)))
-        ax[3 + i].plot(
+    # ------------------------------------------------------------------
+    # Columna central: cuantiles para varios períodos de retorno
+    # ------------------------------------------------------------------
+    for i in range(ntr):
+        # cada período de retorno en una fila distinta de la columna central
+        ax.append(plt.subplot2grid((nrows, 3), (i, 1)))
+        idx = 3 + i  # índice en la lista ax
+
+        ax[idx].plot(
             info["thresholds"], info["mean_value_lmom"][:, 6 + i], "k-", lw=2
         )
-        ax[3 + i].plot(
+        ax[idx].plot(
             info["thresholds"],
             info["upper_lim"][:, 6 + i],
             "k--",
@@ -2610,27 +2633,36 @@ def pot_lmom(
             info["lower_lim"][:, 6 + i],
             "k--",
         )
-        ax[3 + i].axvline(x=selected_value, color="r")
-        ax[3 + i].set_ylabel(
+        ax[idx].axvline(x=selected_value, color="r")
+        ax[idx].set_ylabel(
             r"\textbf{Return period of " + str(int(info["tr_eval"][i])) + " yr}"
         )
-        ax[3 + i].grid()
-        ax[3 + i].set_xlim(xlim)
-        ax[3 + i].set_ylim(
+        ax[idx].grid()
+        ax[idx].set_xlim(xlim)
+        ax[idx].set_ylim(
             (
                 np.floor(np.min(info["lower_lim"][:, 6 + i])),
                 np.ceil(np.max(info["upper_lim"][:, 6 + i])),
             )
         )
-        if i+1 < np.size(info["tr_eval"]):
-            ax[3 + i].get_xaxis().set_ticklabels([])
+        # Oculta etiquetas de X salvo en el último
+        if i + 1 < ntr:
+            ax[idx].get_xaxis().set_ticklabels([])
 
-    ax[3].set_title(r"\textbf{VALUES FOR SEVERAL RETURN PERIODS}", fontsize=10)
-    ind_ = 3 + np.size(info["tr_eval"])
-    ax[ind_ - 1].set_xlabel(r"\textbf{Threshold}")
+    # Título para la columna de períodos de retorno
+    if ntr > 0:
+        ax[3].set_title(r"\textbf{VALUES FOR SEVERAL RETURN PERIODS}", fontsize=10)
 
-    # Goodness-of-fit statistics and p-value plots
-    ax.append(plt.subplot2grid((3, 3), (0, 2), rowspan=2))
+    ind_ = 3 + ntr
+    # Eje X en el último período de retorno
+    if ntr > 0:
+        ax[ind_ - 1].set_xlabel(r"\textbf{Threshold}")
+
+    # ------------------------------------------------------------------
+    # Columna derecha: A_R^2 / (1-p_value) y nº máximos / nº picos
+    # ------------------------------------------------------------------
+    # A_R^2 y 1-p_value ocupan todas las filas menos la última
+    ax.append(plt.subplot2grid((nrows, 3), (0, 2), rowspan=nrows - 1))
     ax[ind_].plot(info["thresholds"], info["au2_lmom"], "k-", lw=2)
     ax[ind_].axvline(x=selected_value, color="r")
     ax[ind_].grid()
@@ -2650,8 +2682,8 @@ def pot_lmom(
     ax[ind_ + 1].set_xlim(xlim)
     ax[ind_ + 1].legend()
 
-    # Annual events and total peaks plot
-    ax.append(plt.subplot2grid((3, 3), (2, 2)))
+    # Última fila de la columna derecha: nº de máximos anuales y nº de picos
+    ax.append(plt.subplot2grid((nrows, 3), (nrows - 1, 2)))
     ax[ind_ + 2].plot(info["thresholds"], info["mean_value_lmom"][:, 5], "k-", lw=2)
     ax[ind_ + 2].axvline(x=selected_value, color="r")
     ax[ind_ + 2].set_ylabel(r"\textbf{No. of annual maxima}", fontweight="bold")
@@ -2672,8 +2704,202 @@ def pot_lmom(
     )
     ax[ind_ + 3].set_xlim(xlim)
     ax[ind_ + 3].set_yticks(n2l)
+
     show(file_name)
     return
+
+
+def plot_pot_threshold_summary(
+    df,
+    var_,
+    results,
+    window_size,
+    percentiles=(90, 95, 99, 99.5),
+    save_dir=None,
+    fname = None,
+    dpi=300,
+):
+    """
+    Genera una figura resumen del análisis POT para uno o varios percentiles de umbral.
+
+    En lugar de una figura por percentil, genera UNA sola figura con:
+        - 2 filas de subplots
+        - N columnas (una por percentil, máximo 4)
+            * Fila superior: serie temporal + umbral + eventos POT
+            * Fila inferior: niveles de retorno (GPD) + IC
+
+    Los subplots de la fila superior comparten eje y entre sí.
+    Los subplots de la fila inferior comparten eje y entre sí.
+
+    Parámetros
+    ----------
+    df : pandas.DataFrame
+        Serie temporal original.
+    var_ : str
+        Nombre de la columna de la variable analizada.
+    results : dict
+        Diccionario devuelto por el método POT (thresholds, tr_eval,
+        mean_value_lmom, upper_lim, lower_lim).
+    window_size : int
+        Tamaño de la ventana móvil utilizada para identificar máximos locales.
+    percentiles : float o iterable de floats
+        Percentiles para los que generar un resumen (cada uno será una columna).
+        Se limita el número máximo de percentiles a 4.
+    save_dir : str o None
+        Carpeta donde guardar las figuras (PNG). Si None → solo mostrar.
+    dpi : int
+        Resolución al guardar la figura.
+
+    Retorna
+    -------
+    None
+        Muestra la figura por pantalla y opcionalmente la guarda en disco.
+    """
+
+    thresholds = results["thresholds"]
+    tr_eval = results["tr_eval"]
+    mean_val = results["mean_value_lmom"]
+    upper = results["upper_lim"]
+    lower = results["lower_lim"]
+
+    safe_var = str(var_).replace("_", r"\_")
+
+    # Malla de percentiles usada en pot_method
+    perc_grid = np.hstack([np.linspace(90, 99, 10), np.linspace(99.1, 99.9, 9)])
+
+    # Asegurar iterable
+    if np.isscalar(percentiles):
+        percentiles = [percentiles]
+    percentiles = np.asarray(percentiles, float)
+
+    # Limitar número máximo de percentiles a 4
+    if len(percentiles) > 4:
+        print("[INFO] Se han proporcionado más de 4 percentiles. "
+              "Solo se usarán los 4 primeros.")
+        percentiles = percentiles[:4]
+
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+
+    # Eventos POT base
+    df_max_events = utils.max_moving_window(df[var_], window_size)
+    base_events = df_max_events[df_max_events > np.percentile(df[var_], 90)]
+
+    ncols = len(percentiles)
+
+    # Crear figura con 2 filas y ncols columnas
+    # sharey='row' → comparten eje y dentro de cada fila
+    fig, axes = plt.subplots(
+        2,
+        ncols,
+        figsize=(4 * ncols, 8),
+        sharey='row'
+    )
+
+    # En caso de ncols = 1, axes viene como shape (2,) → lo reordenamos a (2,1)
+    axes = np.array(axes)
+    if axes.ndim == 1:
+        axes = axes.reshape(2, 1)
+
+    # Recorremos percentiles, cada uno va a una columna j
+    for j, p in enumerate(percentiles):
+
+        idx = np.argmin(np.abs(perc_grid - p))
+        thr_value = thresholds[idx]
+
+        mean_row = mean_val[idx]
+        upper_row = upper[idx]
+        lower_row = lower[idx]
+
+        nu_i = mean_row[5]
+        q_mean = mean_row[6:]
+        q_up   = upper_row[6:]
+        q_low  = lower_row[6:]
+
+        ax_top = axes[0, j]
+        ax_bottom = axes[1, j]
+
+        # ------------------ SUBPLOT SUPERIOR ------------------
+        ax_top.plot(df.index, df[var_], lw=0.7) # , label="Serie original")
+
+        ax_top.axhline(
+            thr_value,
+            ls="--",
+            color="tab:orange") #,
+            #label=rf"Umbral: $p \approx {p:.2f}\%$, $u = {thr_value:.3f}$",
+        
+
+        events_thr = base_events[base_events > thr_value]
+        if len(events_thr) > 0:
+            ax_top.scatter(
+                events_thr.index,
+                events_thr.values,
+                edgecolors="red",
+                marker="o",
+                facecolors="none",
+                zorder=10,
+                s=25,
+            )
+
+        # Texto con frecuencia de excedencias
+        ax_top.text(
+            0.01, 0.95,
+            rf"$\nu \approx {nu_i:.2f}$ events/year",
+            transform=ax_top.transAxes,
+            fontsize=9,
+            va="top",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7),
+        )
+
+        if j == 0:
+            ax_top.set_ylabel(rf"${safe_var}$")
+
+        ax_top.grid(True, alpha=0.3)
+        ax_top.set_title(
+            rf"Serie + umbral ($p \approx {p:.2f}\%$, $u = {thr_value:.3f}$)",
+            fontsize=10,
+        )
+
+        # Opcional: solo poner la leyenda en la primera columna
+        if j == 0:
+            leg = ax_top.legend(fontsize=8)
+            leg.set_zorder(100)
+
+        # ------------------ SUBPLOT INFERIOR ------------------
+        ax_bottom.plot(tr_eval, q_mean, marker="o", lw=1.2, label="Mean")
+        ax_bottom.fill_between(tr_eval, q_low, q_up, alpha=0.3, label="IC")
+
+        ax_bottom.set_xscale("log")
+        ax_bottom.grid(True, which="both", alpha=0.3)
+        ax_bottom.set_xlabel("Return period T (years)")
+        if j == 0:
+            ax_bottom.set_ylabel(rf"${safe_var}$")
+        ax_bottom.set_title(
+            rf"Return levels (GPD; $p \approx {p:.2f}\%$)",
+            fontsize=10,
+        )
+
+        if j == 0:
+            ax_bottom.legend(fontsize=8)
+
+    # ------------------ FIGURA COMPLETA -------------------
+    p_strs = [rf"$p \approx {p:.2f}\%$" for p in percentiles]
+
+    fig.suptitle(
+        "POT threshold summary\nPercentiles: " + ", ".join(p_strs),
+        fontsize=14,
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
+
+    if save_dir is not None:
+        # Nombre con todos los percentiles incluidos
+        # p_tag = "_".join(str(p).replace(".", "p") for p in percentiles)
+        # fpath = os.path.join(save_dir, f"POT_threshold_summary_multi_{p_tag}.png")
+        fpath = os.path.join(save_dir, fname)
+        fig.savefig(fpath, dpi=dpi)
+        print(f"[OK] Saved: {fpath}")
+
+    plt.show()
 
 
 def annual_maxima_analysis(
@@ -2933,3 +3159,4 @@ def serie_peaks_umbral(df_serie, df_peaks, ylab, umbral, nombre):
     )
 
     plt.title(nombre)
+
