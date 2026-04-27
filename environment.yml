@@ -1,0 +1,55 @@
+name: env-env_tools
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.13
+  - hatchling
+  - affine
+  - cartopy
+  - cdsapi
+  - cmocean
+  - configobj
+  - earthengine-api
+  - esgf-pyclient
+  - folium
+  - geedim
+  - geemap
+  - geopandas
+  - glob2
+  - intake-esgf
+  - loguru
+  - lxml
+  - matplotlib
+  - numpy
+  - openpyxl
+  - pandas
+  - pillow
+  - psutil
+  - pydap
+  - pymcdm
+  - pypdf2
+  - pyproj
+  - pyshp
+  - shapely
+  - python-dotenv
+  - pytmd
+  - rasterio
+  - requests
+  - scikit-image
+  - scikit-learn
+  - scipy
+  - seaborn
+  - statsmodels
+  - tabula-py
+  - timescale
+  - tqdm
+  - utide
+  - werkzeug
+  - windrose
+  - xarray
+  - sphinx
+  - sphinx-rtd-theme
+  - pytest
+  - pip
