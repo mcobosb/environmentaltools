@@ -1017,7 +1017,7 @@ def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
                     # Convertimos los percentiles deseados (0.85 y 0.95) a Z-scores
                     # st.norm.ppf(0.85) approx 1.036
                     # st.norm.ppf(0.95) approx 1.645
-                    lower_limit_z = st.norm.ppf(0.88)
+                    lower_limit_z = st.norm.ppf(0.90)
                     upper_limit_z = st.norm.ppf(0.99)
                     
                     # Sobrescribimos los bnds para este parámetro específico
