@@ -2,6 +2,10 @@
 
 All relevant project updates are documented here:
 
+## [3.2.7] - 2026-04-29
+### Added
+- fix range for upper tail threshold (potinar)
+
 ## [3.2.6] - 2026-04-27
 ### Added
 - added environment.yml file (potinar)
