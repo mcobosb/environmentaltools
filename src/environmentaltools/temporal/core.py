@@ -1089,6 +1089,20 @@ def fit(df_: pd.DataFrame, param_: dict, par0: list, mode_: list, ref: int):
         elif param["optimization"]["method"] == "shgo":
             res[j] = shgo(negative_log_likelihood, par0, args=(df, mode, param, t_expans))
 
+        elif param["optimization"]["method"] == "L-BFGS-B":
+            res[j] = minimize(
+                negative_log_likelihood,
+                par0,
+                args=(df, mode, param, t_expans),
+                bounds=bnds,
+                method="L-BFGS-B",
+                options={
+                    "ftol": param["optimization"]["ftol"],
+                    "eps": param["optimization"]["eps"],
+                    "maxiter": int(param["optimization"]["maxiter"]),
+                })
+
+
         # ------------------------------------------------------------------------------
         # Check whether the algorithm succesfully run
         # ------------------------------------------------------------------------------
