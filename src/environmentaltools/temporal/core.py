@@ -2071,6 +2071,108 @@ def ppf(df: pd.DataFrame, param: dict):
     return df
 
 
+def cdf_nonstationary_matrix(df: pd.DataFrame, param: dict, n_intervals: int, min_, max_, time_points: int = 100):
+    """Computes a 2D CDF matrix for non-stationary reduction case.
+    
+    Generates a matrix where:
+    - Rows: time normalized from 0 to 1
+    - Columns: variable values discretized into n_intervals
+    - Values: CDF for each (time, value) pair
+    
+    This function is specifically designed for the case where reduction=True 
+    and the parameters vary non-stationarily in time (basis_function['order'] > 0).
+
+    Args:
+        * df (pd.DataFrame): raw time series data (used for reference)
+        * param (dict): the parameters of the probability model
+        * n_intervals (int): number of intervals to discretize the variable
+        * min_ (float): minimum value of the variable for discretization
+        * max_ (float): maximum value of the variable for discretization
+        * time_points (int): number of normalized time points from 0 to 1. Defaults to 100.
+
+    Returns:
+        * cdf_matrix (np.ndarray): 2D array of shape (time_points, n_intervals) 
+                                   containing CDF values
+        * time_grid (np.ndarray): normalized time points from 0 to 1
+        * value_grid (np.ndarray): discretized variable values
+    
+    Examples
+    --------
+    >>> cdf_matrix, t_grid, v_grid = cdf_nonstationary_matrix(
+    ...     df, param, n_intervals=50, min_=0, max_=10, time_points=100
+    ... )
+    >>> cdf_matrix.shape
+    (100, 50)
+    """
+    
+    if not param["reduction"]:
+        raise ValueError("cdf_nonstationary_matrix requires param['reduction'] = True")
+    
+    # Create normalized time grid from 0 to 1
+    time_grid = np.linspace(0, 1, time_points)
+    
+    # Create discretized value grid from minimax range
+    # value_grid = np.linspace(param["minimax"][0], param["minimax"][1], n_intervals)
+    value_grid = np.linspace(min_, max_, n_intervals)
+    
+    # Initialize CDF matrix
+    cdf_matrix = np.zeros((time_points, n_intervals))
+    
+    # Create a single dataframe with all time-value combinations
+    df_grid = pd.DataFrame({
+        "n": np.repeat(time_grid, n_intervals),
+        param["var"]: np.tile(value_grid, time_points),
+    })
+    
+    # Get time expansion factors for all times
+    t_expans = params_t_expansion(param["mode"], param, df_grid["n"])
+    
+    # Get parameters for all time-value combinations using existing function
+    df_params, esc = get_params(df_grid.copy(), param, param["par"], param["mode"], t_expans)
+    
+    # Rename the variable to "data" if needed
+    if not "data" in df_params.columns:
+        df_params.rename(columns={param["var"]: "data"}, inplace=True)
+    
+    # Calculate CDF using the existing logic from cdf() function
+    fu1 = df_params["data"] < df_params["u1"]
+    df_params.loc[fu1, "prob"] = esc[1] * (
+        1 - df_params.loc[fu1, "xi1"] / df_params.loc[fu1, "siggp1"] *
+        (df_params.loc[fu1, "data"] - df_params.loc[fu1, "u1"])
+    ) ** (-1.0 / df_params.loc[fu1, "xi1"])
+    
+    fu2 = df_params["data"] > df_params["u2"]
+    df_params.loc[fu2, "prob"] = (
+        1 - esc[2] + esc[2] * (
+            1 - (
+                1 + df_params.loc[fu2, "xi2"] / df_params.loc[fu2, "siggp2"] *
+                (df_params.loc[fu2, "data"] - df_params.loc[fu2, "u2"])
+            ) ** (-1.0 / df_params.loc[fu2, "xi2"])
+        )
+    )
+    
+    fuc = (df_params["data"] >= df_params["u1"]) & (df_params["data"] <= df_params["u2"])
+    if param["no_param"][0] == 2:
+        df_params.loc[fuc, "prob"] = param["fun"][1].cdf(
+            df_params.loc[fuc, "data"], df_params.loc[fuc, "shape"], df_params.loc[fuc, "loc"]
+        )
+    else:
+        df_params.loc[fuc, "prob"] = param["fun"][1].cdf(
+            df_params.loc[fuc, "data"],
+            df_params.loc[fuc, "shape"],
+            df_params.loc[fuc, "loc"],
+            df_params.loc[fuc, "scale"],
+        )
+    
+    # Replace NaN values with 1 (since they should represent maximum probability)
+    df_params["prob"] = df_params["prob"].fillna(1.0)
+    
+    # Reshape the probability values into the matrix
+    cdf_matrix = df_params["prob"].values.reshape((time_points, n_intervals))
+    
+    return cdf_matrix, time_grid, value_grid
+
+
 def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
     """Computes the cumulative distribution function
 
