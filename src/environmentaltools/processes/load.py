@@ -344,6 +344,7 @@ def delft_raw_files_point(point, mesh_filename, folder, vars_, nocases, filename
     
     # Extract data for each case
     for i in cases:
+        print(f"Processing case {i}/{nocases} for point {point}...")
         # Read header to get grid dimensions
         fid = open(folder + '/case' + str(i).zfill(4) + '/' + vars_[0] + '.txt', 'r')
         info = fid.readlines()
