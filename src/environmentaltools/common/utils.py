@@ -183,7 +183,7 @@ def nonstationary_ecdf(
             pemp = np.array([0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.995])
 
     # Create result DataFrame: rows are unique normalized times, columns are percentiles
-    res = pd.DataFrame(0, index=data.n.unique(), columns=pemp)
+    res = pd.DataFrame(0.0, index=data.n.unique(), columns=pemp)
 
     # For each time index, compute percentiles in a moving window
     for i in res.index:
