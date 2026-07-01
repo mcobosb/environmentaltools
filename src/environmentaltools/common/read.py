@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from datetime import timedelta
 from zipfile import ZipFile
@@ -461,6 +462,95 @@ def ascii_tiff(file_name: str, output_format: str = "row"):
         dout = {"x": x, "y": y, "z": z}
 
     return dout, profile
+
+
+def dap_ascii(file_name: str, variable: str = "elevation", output_format: str = "grid"):
+    """Read a variable from an OPeNDAP/DAP2 ASCII grid export.
+
+    Parses text files produced by DAP2 "ascii" responses (e.g. EMODnet
+    Bathymetry WCS/OPeNDAP downloads). Despite commonly using the .asc
+    extension, these files are plain text DAP2 dumps, not GDAL-readable
+    ESRI ASCII/GeoTIFF rasters, so they cannot be opened with rasterio
+    and therefore are not supported by ascii_tiff(). Use ascii_tiff() for
+    real ESRI ASCII/GeoTIFF rasters, and this function for DAP2 ASCII
+    exports instead.
+
+    The file holds a DDS-style header describing one or more lat/lon grid
+    variables (e.g. elevation, value_count, cdi_index, ...). Each variable
+    is stored as one comma-separated data row per latitude index (missing
+    cells are empty fields), followed by its latitude and longitude
+    coordinate arrays. Only the requested variable is parsed; the file is
+    read once and reading stops as soon as that variable's blocks have
+    been consumed, so unrelated variables further down the file are never
+    loaded.
+
+    Args:
+        file_name (str): Path to the DAP2 ASCII (.asc) file.
+        variable (str): Name of the grid variable to extract (e.g.
+            "elevation", "stdev"). Defaults to "elevation".
+        output_format (str): Output format type. Options are:
+            - "grid": Returns dictionary with 2D arrays for x, y, z (default)
+            - "row": Returns flattened DataFrame with x, y, z columns
+
+    Returns:
+        dict or pd.DataFrame: Coordinate and value data in the specified
+            format. In "grid" format, x and y are 2D meshgrid arrays
+            (longitude, latitude) and z is the 2D data array with shape
+            (n_latitude, n_longitude). In "row" format, a DataFrame with
+            columns [x, y, z], one row per grid cell.
+
+    Raises:
+        ValueError: If the requested variable is not found in the file.
+
+    Notes:
+        Missing values are stored as empty fields between commas in the
+        source file and are decoded as NaN.
+    """
+
+    header = re.compile(rf"{variable}\.{variable}\[(\d+)\]\[(\d+)\]")
+
+    with open(file_name) as f:
+        for line in f:
+            match = header.match(line)
+            if match:
+                n_lat, n_lon = int(match.group(1)), int(match.group(2))
+                break
+        else:
+            raise ValueError(f"Variable '{variable}' not found in {file_name}")
+
+        # Each data row is "[row_index], v0, v1, ..., v(n_lon - 1),"
+        z = np.full((n_lat, n_lon), np.nan, dtype=np.float32)
+        for row in range(n_lat):
+            values = next(f).strip().split(",")[1 : n_lon + 1]
+            z[row, :] = [float(v) if v.strip() else np.nan for v in values]
+
+        line = next(f)
+        while not line.startswith(f"{variable}.latitude"):
+            line = next(f)
+        lat = np.array([float(v) for v in next(f).strip().split(",") if v.strip()])
+
+        line = next(f)
+        while not line.startswith(f"{variable}.longitude"):
+            line = next(f)
+        lon = np.array([float(v) for v in next(f).strip().split(",") if v.strip()])
+
+    x, y = np.meshgrid(lon, lat)
+
+    if output_format == "row":
+        dout = pd.DataFrame(
+            np.vstack(
+                [
+                    np.asarray(x).flatten(),
+                    np.asarray(y).flatten(),
+                    np.asarray(z).flatten(),
+                ]
+            ).T,
+            columns=["x", "y", "z"],
+        )
+    else:
+        dout = {"x": x, "y": y, "z": z}
+
+    return dout
 
 
 def kmz(file_name: str, joint: bool = False):
