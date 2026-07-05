@@ -309,11 +309,17 @@ def merge_sea_sea(tb, bd, corners, sea="south"):
     cs = plt.tricontour(tb.x[mask], tb.y[mask], tb.z[mask], levels=[-40])
 
     # Find longest contour segment
+    # matplotlib < 3.8 nests paths under cs.collections (one LineCollection per
+    # level); newer versions expose the paths directly on the ContourSet.
+    if hasattr(cs, "collections"):
+        paths = [path for collection in cs.collections for path in collection.get_paths()]
+    else:
+        paths = cs.get_paths()
+
     datab = [0]
-    for collection in cs.collections:
-        for path in collection.get_paths():
-            if len(datab) < len(path.to_polygons()[0]):
-                datab = np.asarray(path.to_polygons()[0])[:-1, :]
+    for path in paths:
+        if len(datab) < len(path.to_polygons()[0]):
+            datab = np.asarray(path.to_polygons()[0])[:-1, :]
 
     plt.close()
     
