@@ -182,7 +182,12 @@ def spatial_mask(data, polygon, op="within"):
     )
 
     # Perform spatial join with polygon
-    mask = gpd.sjoin(geodata, polygon, op="within", how="left")
+    # geopandas < 0.10 named this argument "op"; newer versions renamed it to
+    # "predicate" and removed "op" entirely.
+    try:
+        mask = gpd.sjoin(geodata, polygon, predicate="within", how="left")
+    except TypeError:
+        mask = gpd.sjoin(geodata, polygon, op="within", how="left")
     
     # Filter based on operation type
     if op == "within":
@@ -273,7 +278,7 @@ def remove_lowland(data, reference_value: float = 0, replace_value: float = 2):
 
 def merge_sea_sea(tb, bd, corners, sea="south"):
     """Merge shallow topobathymetry with deep-water bathymetry.
-    
+
     Combines near-shore topobathymetry data with offshore deep-water bathymetry
     by defining a transition depth contour and blending the datasets.
 
@@ -322,7 +327,7 @@ def merge_sea_sea(tb, bd, corners, sea="south"):
             datab = np.asarray(path.to_polygons()[0])[:-1, :]
 
     plt.close()
-    
+
     # Build polygon based on sea location
     if sea == "south":
         # Southern boundary
@@ -336,7 +341,7 @@ def merge_sea_sea(tb, bd, corners, sea="south"):
         )
         coords = np.c_[coords, [x, y]]
         coords = np.c_[datab[::-1].T, coords]
-        
+
     elif sea == "east":
         # Western boundary
         x, y = np.tile(corners.x[0], 2), np.linspace(corners.y[0], corners.y[1], 2)

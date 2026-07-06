@@ -737,9 +737,9 @@ def shp(file_name: str, joint: bool = False, variable: str = None):
 
             elif type_ == "MultiPolygon":
                 try:
-                    for k_, polygon_ in enumerate(shape_file["geometry"][k]):
+                    for k_, polygon_ in enumerate(shape_file["geometry"][k].geoms):
                         if polygon_ is not None:
-                            if polygon_ == "Polygon":
+                            if polygon_.geom_type == "Polygon":
                                 xy.append(np.asarray(polygon_.exterior.coords.xy).T)
                             elif polygon_.geom_type == "linearRing":
                                 xy.append(
