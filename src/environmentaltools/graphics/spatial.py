@@ -1133,3 +1133,453 @@ def include_seas(ax):
             fontsize=12,
         )
     return
+
+
+# ---------------------------------------------------------------------------
+# DELFT3D grid helpers (private)
+# ---------------------------------------------------------------------------
+
+def _read_delft_grd(grd_path):
+    """Read a DELFT3D ASCII .grd file (RGFGRID format).
+
+    Returns:
+        tuple: (X, Y, mmax, nmax) where X and Y are 2-D arrays of shape
+        (nmax, mmax) in the coordinate system of the file.
+    """
+    with open(grd_path, encoding="latin-1") as f:
+        lines = f.readlines()
+
+    miss = -999.0
+    mmax = nmax = None
+    rows, current = [], []
+    in_data = False
+
+    for line in lines:
+        s = line.strip()
+        if not s or s.startswith("*"):
+            continue
+        if "Missing" in s:
+            miss = float(s.split("=")[1].strip())
+            continue
+        if "Coordinate" in s:
+            continue
+        if mmax is None and "=" not in s:
+            parts = s.split()
+            if len(parts) == 2:
+                try:
+                    mmax, nmax = int(parts[0]), int(parts[1])
+                    continue
+                except ValueError:
+                    pass
+        if s == "0 0 0":
+            continue
+        if s.startswith("ETA="):
+            if current:
+                rows.append(current)
+            current = [float(v) for v in s.split()[2:]]
+            in_data = True
+        elif in_data:
+            current.extend(float(v) for v in s.split())
+    if current:
+        rows.append(current)
+
+    X = np.array(rows[:nmax], dtype=float)
+    Y = np.array(rows[nmax:], dtype=float)
+    X[np.isclose(X, miss)] = np.nan
+    Y[np.isclose(Y, miss)] = np.nan
+    return X, Y, mmax, nmax
+
+
+def _build_grid_segments(X, Y):
+    """Build all cell-edge segments for a DELFT3D curvilinear grid.
+
+    Args:
+        X (np.ndarray): 2-D array of X coordinates (nmax, mmax).
+        Y (np.ndarray): 2-D array of Y coordinates (nmax, mmax).
+
+    Returns:
+        np.ndarray: Array of shape (N, 2, 2) with [start, end] pairs for
+        every valid grid edge, ready for use with ``LineCollection``.
+    """
+    x1h, x2h = X[:, :-1], X[:, 1:]
+    y1h, y2h = Y[:, :-1], Y[:, 1:]
+    valid_h = ~(np.isnan(x1h) | np.isnan(x2h))
+    segs_h = np.stack(
+        [np.stack([x1h, y1h], axis=-1), np.stack([x2h, y2h], axis=-1)], axis=-2
+    )[valid_h]
+
+    x1v, x2v = X[:-1, :], X[1:, :]
+    y1v, y2v = Y[:-1, :], Y[1:, :]
+    valid_v = ~(np.isnan(x1v) | np.isnan(x2v))
+    segs_v = np.stack(
+        [np.stack([x1v, y1v], axis=-1), np.stack([x2v, y2v], axis=-1)], axis=-2
+    )[valid_v]
+
+    return np.vstack([segs_h, segs_v])
+
+
+def _load_coast_segments(coast_path, gap_m=5000):
+    """Load an XYZ coastline file and split it into continuous segments.
+
+    The file must be a CSV with ``x`` and ``y`` columns in the same CRS as
+    the grids. Segments are separated wherever consecutive points are more
+    than *gap_m* metres apart.
+
+    Args:
+        coast_path (str or Path): Path to the CSV coastline file.
+        gap_m (float): Gap threshold in metres. Defaults to 5000.
+
+    Returns:
+        list[np.ndarray]: List of (N, 2) arrays, one per segment.
+    """
+    import pandas as _pd
+
+    df = _pd.read_csv(coast_path)
+    xy = df[["x", "y"]].values
+    dist = np.hypot(np.diff(xy[:, 0]), np.diff(xy[:, 1]))
+    breaks = list(np.where(dist > gap_m)[0] + 1)
+    segs, prev = [], 0
+    for b in breaks + [len(xy)]:
+        segs.append(xy[prev:b])
+        prev = b
+    return segs
+
+
+def _build_land_polygon(coast_xy, xmin, xmax, ymin, ymax,
+                        land_is_north=True, pad=20000):
+    """Build a filled land polygon from an open coastline.
+
+    The coastline must run roughly west–east across the domain. The polygon
+    is closed through the *north* (high-Y) edge of the padded extent when
+    ``land_is_north=True``, or through the *south* edge otherwise.
+
+    Args:
+        coast_xy (np.ndarray): Array of shape (N, 2) with the main coastline.
+        xmin, xmax, ymin, ymax (float): Map extent in metres.
+        land_is_north (bool): If True, land is north of the coast (default).
+        pad (float): Extra padding beyond the extent in metres. Defaults to 20000.
+
+    Returns:
+        np.ndarray or None: Array of polygon vertices (M, 2), or None if the
+        coastline does not intersect the padded extent.
+    """
+    p = pad
+    mask = (
+        (coast_xy[:, 0] >= xmin - p) & (coast_xy[:, 0] <= xmax + p) &
+        (coast_xy[:, 1] >= ymin - p) & (coast_xy[:, 1] <= ymax + p)
+    )
+    idx = np.where(mask)[0]
+    if len(idx) == 0:
+        return None
+    pts = coast_xy[idx[0]:idx[-1] + 1]
+    # Ensure west-to-east ordering
+    if pts[0, 0] > pts[-1, 0]:
+        pts = pts[::-1]
+    close_y = ymax + p if land_is_north else ymin - p
+    poly = np.vstack([
+        [[xmin - p, pts[0, 1]]],
+        pts,
+        [[xmax + p, pts[-1, 1]]],
+        [[xmax + p, close_y]],
+        [[xmin - p, close_y]],
+    ])
+    return poly
+
+
+# ---------------------------------------------------------------------------
+# Public function
+# ---------------------------------------------------------------------------
+
+_DELFT_DEFAULT_STYLES = [
+    {"color": "#1565C0", "lw": 0.30, "alpha": 0.65},
+    {"color": "#E65100", "lw": 0.40, "alpha": 0.85},
+    {"color": "#2E7D32", "lw": 0.35, "alpha": 0.75},
+    {"color": "#6A1B9A", "lw": 0.35, "alpha": 0.75},
+]
+
+
+def plot_delft_grids(
+    grd_paths,
+    coast_xyz=None,
+    points=None,
+    utm_zone=30,
+    margin=8000,
+    color_land="#EDE8DF",
+    color_ocean="#C8DCF0",
+    coast_gap_m=5000,
+    land_is_north=True,
+    grid_styles=None,
+    point_label_col=None,
+    point_label_offset=500,
+    title=None,
+    figsize=(12, 10),
+    fname=None,
+):
+    """Plot DELFT3D-WAVE curvilinear grids with an optional basemap.
+
+    Draws one or more DELFT3D curvilinear grids read from ASCII ``.grd``
+    files (RGFGRID format) over a basemap built from a high-resolution
+    coastline polyline. Extraction or control points can be overlaid
+    optionally.
+
+    All spatial data (grids, coastline and points) must be in the same
+    UTM coordinate system.
+
+    Args:
+        grd_paths (dict[str, str | Path]): Mapping of grid label → path to
+            the ``.grd`` file (e.g. ``{"ext": "Alboran_ext.grd", "int":
+            "Alboran_int.grd"}``). Grids are drawn in dict order.
+        coast_xyz (str | Path | None): Path to a CSV file with ``x`` and
+            ``y`` columns (same UTM CRS) representing the coastline as an
+            ordered polyline. When provided, land and ocean are filled with
+            *color_land* and *color_ocean* respectively. Defaults to None.
+        points (pd.DataFrame | None): Optional table of control or
+            extraction points with at least ``x`` and ``y`` columns (same
+            UTM CRS). An extra column named *point_label_col* is used for
+            annotations when provided. Defaults to None.
+        utm_zone (int): UTM zone number used for the cartopy projection.
+            Defaults to 30.
+        margin (float): Map margin around the outermost grid extent, in
+            metres. Defaults to 8000.
+        color_land (str): Fill colour for land areas. Defaults to
+            ``"#EDE8DF"``.
+        color_ocean (str): Fill colour for ocean background. Defaults to
+            ``"#C8DCF0"``.
+        coast_gap_m (float): Threshold in metres for splitting the
+            coastline polyline into separate segments. Defaults to 5000.
+        land_is_north (bool): If True, the land polygon is closed through
+            the northern edge of the map extent. Set to False for domains
+            where land is to the south of the coastline. Defaults to True.
+        grid_styles (dict[str, dict] | None): Per-grid style overrides. Keys
+            must match those in *grd_paths*. Each value is a dict with any
+            of ``color``, ``lw``, ``alpha``. Defaults to None (built-in
+            palette).
+        point_label_col (str | None): Column in *points* to use as point
+            labels. If None, points are drawn without text labels. Defaults
+            to None.
+        point_label_offset (float): Label offset in metres from the point
+            position. Defaults to 500.
+        title (str | None): Figure title. Defaults to None.
+        figsize (tuple): Figure size in inches. Defaults to (12, 10).
+        fname (str | None): Output file path. If None, the figure is
+            displayed interactively. Defaults to None.
+
+    Returns:
+        matplotlib.axes.GeoAxes: The cartopy axes with all elements drawn.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> from environmentaltools.graphics import plot_delft_grids
+        >>> plot_delft_grids(
+        ...     grd_paths={"ext": "Alboran_ext.grd", "int": "Alboran_int.grd"},
+        ...     coast_xyz="linea_costa_oficial_utm30n.xyz",
+        ...     points=df_points,           # DataFrame with x, y, label columns
+        ...     point_label_col="label",
+        ...     utm_zone=30,
+        ...     title="DELFT3D grids — Alboran Sea",
+        ...     fname="mallas_puntos.png",
+        ... )
+    """
+    if not HAS_CARTOPY:
+        raise ImportError(
+            "cartopy is required for plot_delft_grids. "
+            "Install it with: conda install -c conda-forge cartopy"
+        )
+
+    from matplotlib.collections import LineCollection
+    import matplotlib.patches as mpatches
+
+    proj = ccrs.UTM(zone=utm_zone)
+    fig, ax = plt.subplots(figsize=figsize, subplot_kw={"projection": proj})
+
+    # ------------------------------------------------------------------
+    # Ocean background
+    # ------------------------------------------------------------------
+    ax.set_facecolor(color_ocean)
+
+    # ------------------------------------------------------------------
+    # Grids
+    # ------------------------------------------------------------------
+    legend_handles = []
+    x_all, y_all = [], []
+
+    for i, (name, path) in enumerate(grd_paths.items()):
+        X, Y, mmax, nmax = _read_delft_grd(path)
+        segs = _build_grid_segments(X, Y)
+
+        # Resolve style
+        default_st = _DELFT_DEFAULT_STYLES[i % len(_DELFT_DEFAULT_STYLES)]
+        if grid_styles and name in grid_styles:
+            st = {**default_st, **grid_styles[name]}
+        else:
+            st = default_st
+
+        lc = LineCollection(
+            segs,
+            colors=st["color"],
+            linewidths=st["lw"],
+            alpha=st["alpha"],
+            transform=proj,
+            zorder=4,
+        )
+        ax.add_collection(lc)
+        legend_handles.append(
+            mpatches.Patch(
+                facecolor=st["color"],
+                alpha=0.6,
+                edgecolor=st["color"],
+                label=f"{name}  ({mmax}\u00d7{nmax})",
+            )
+        )
+        x_all += [np.nanmin(X), np.nanmax(X)]
+        y_all += [np.nanmin(Y), np.nanmax(Y)]
+
+    # ------------------------------------------------------------------
+    # Map extent
+    # ------------------------------------------------------------------
+    extent_utm = [
+        min(x_all) - margin, max(x_all) + margin,
+        min(y_all) - margin, max(y_all) + margin,
+    ]
+    ax.set_extent(extent_utm, crs=proj)
+    xmin, xmax, ymin, ymax = extent_utm
+
+    # ------------------------------------------------------------------
+    # Coastline and land fill
+    # ------------------------------------------------------------------
+    if coast_xyz is not None:
+        coast_segs = _load_coast_segments(coast_xyz, gap_m=coast_gap_m)
+
+        # Merge the two longest open segments into the main coastline
+        open_idx = [i for i, s in enumerate(coast_segs)
+                    if np.hypot(s[-1, 0] - s[0, 0], s[-1, 1] - s[0, 1]) > coast_gap_m]
+        closed_idx = [i for i in range(len(coast_segs)) if i not in open_idx]
+        open_segs = [coast_segs[i] for i in open_idx]
+        closed_segs = [coast_segs[i] for i in closed_idx]
+
+        if len(open_segs) >= 2:
+            # Find and merge the pair that share an endpoint
+            s0, s1 = open_segs[0], open_segs[1]
+            if np.allclose(s0[-1], s1[0], atol=10):
+                main_coast = np.vstack([s0, s1[1:]])
+            elif np.allclose(s1[-1], s0[0], atol=10):
+                main_coast = np.vstack([s1, s0[1:]])
+            else:
+                # Fallback: concatenate in order and sort by x range
+                main_coast = np.vstack(open_segs)
+        elif len(open_segs) == 1:
+            main_coast = open_segs[0]
+        else:
+            main_coast = np.vstack(coast_segs)
+
+        # Land polygon from main coastline
+        land_poly = _build_land_polygon(
+            main_coast, xmin, xmax, ymin, ymax,
+            land_is_north=land_is_north,
+        )
+        if land_poly is not None:
+            ax.fill(land_poly[:, 0], land_poly[:, 1],
+                    color=color_land, transform=proj, zorder=1)
+
+        # Fill closed segments (islands / small features)
+        for seg in closed_segs:
+            if len(seg) >= 3:
+                ax.fill(seg[:, 0], seg[:, 1],
+                        color=color_land, transform=proj, zorder=1)
+
+        # Draw coastline on top of fill
+        for seg in coast_segs:
+            ax.plot(seg[:, 0], seg[:, 1],
+                    color="#333333", linewidth=0.8, transform=proj, zorder=3)
+
+    # ------------------------------------------------------------------
+    # Control / extraction points
+    # ------------------------------------------------------------------
+    if points is not None:
+        ax.scatter(
+            points["x"].values, points["y"].values,
+            color="#D32F2F", s=60, zorder=7,
+            edgecolors="white", linewidths=0.7, transform=proj,
+        )
+        legend_handles.append(
+            mpatches.Patch(
+                facecolor="#D32F2F",
+                label=f"Points (n={len(points)})",
+            )
+        )
+        if point_label_col and point_label_col in points.columns:
+            for _, row in points.iterrows():
+                ax.text(
+                    row["x"] + point_label_offset,
+                    row["y"] + point_label_offset,
+                    str(row[point_label_col]),
+                    transform=proj,
+                    fontsize=7.5,
+                    color="#B71C1C",
+                    fontweight="bold",
+                    zorder=7,
+                )
+
+    # ------------------------------------------------------------------
+    # Lat/lon grid lines and manual labels
+    # ------------------------------------------------------------------
+    ax.gridlines(
+        crs=ccrs.PlateCarree(),
+        draw_labels=False,
+        linewidth=0.4,
+        color="gray",
+        alpha=0.6,
+        linestyle="--",
+        zorder=5,
+    )
+    from pyproj import Transformer as _Transformer
+    _tr = _Transformer.from_crs("EPSG:4326", f"EPSG:{32600 + utm_zone}",
+                                 always_xy=True)
+    for lon in np.arange(-10, 10, 1):
+        xu, _ = _tr.transform(lon, (ymin + ymax) / 2 * 9e-6 + 36)
+        # coarse lat estimate; accurate enough for tick placement
+        xu, _ = _tr.transform(lon, 36.0)
+        if xmin <= xu <= xmax:
+            lbl = f"{abs(lon):.0f}\u00b0{'W' if lon < 0 else 'E'}"
+            ax.text(xu, ymin, lbl, transform=proj, fontsize=7.5,
+                    ha="center", va="top", color="#444444", zorder=6)
+    for lat in np.arange(30, 45, 0.5):
+        _, yu = _tr.transform(-3.0, lat)
+        if ymin <= yu <= ymax:
+            ax.text(xmin, yu, f"{lat:.1f}\u00b0N", transform=proj, fontsize=7.5,
+                    ha="right", va="center", color="#444444", zorder=6)
+
+    # ------------------------------------------------------------------
+    # Scale bar
+    # ------------------------------------------------------------------
+    sb_len_m = round((xmax - xmin) / 6, -3)  # ~1/6 of map width, rounded to km
+    sb_len_km = int(sb_len_m / 1000)
+    bx = xmin + (xmax - xmin) * 0.82
+    by = ymin + (ymax - ymin) * 0.05
+    tick_h = (ymax - ymin) * 0.008
+    ax.plot([bx, bx + sb_len_m], [by, by],
+            color="black", lw=2, transform=proj, zorder=10,
+            solid_capstyle="butt")
+    ax.plot([bx, bx], [by - tick_h, by + tick_h],
+            color="black", lw=1.5, transform=proj, zorder=10)
+    ax.plot([bx + sb_len_m, bx + sb_len_m], [by - tick_h, by + tick_h],
+            color="black", lw=1.5, transform=proj, zorder=10)
+    ax.text(bx + sb_len_m / 2, by + tick_h * 1.5, f"{sb_len_km} km",
+            ha="center", va="bottom", fontsize=8, transform=proj, zorder=10)
+
+    # ------------------------------------------------------------------
+    # Legend and title
+    # ------------------------------------------------------------------
+    ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        fontsize=9,
+        framealpha=0.90,
+        edgecolor="#AAAAAA",
+        fancybox=False,
+    )
+    if title:
+        ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+
+    show(fname)
+    return ax
