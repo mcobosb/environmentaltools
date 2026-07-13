@@ -15,6 +15,7 @@ from .load import (
     read_swan,
     delft_raw_files_point,
     delft_raw_files,
+    extract_delft_wave_dat,
 )
 
 # Computation functions
@@ -80,6 +81,7 @@ __all__ = [
     "read_swan",
     "delft_raw_files_point",
     "delft_raw_files",
+    "extract_delft_wave_dat",
     # Compute - Data processing
     "create_db",
     "create_mesh",
