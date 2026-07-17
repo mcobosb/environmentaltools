@@ -439,82 +439,157 @@ def delft_raw_files(folder, vars_, case_id_):
 
 # Variable index in the NEFIS .dat binary.
 # Each entry: (group, j) where:
-#   group 1 → offset = hs_start + j * step
-#   group 2 → offset = hs_start + 16*step + j*step   (starts at UBOT)
-#   group 3 → offset = hs_start + 28*step + 4 + j*step  (WIND block; 4B = TIME)
+#   group 1 → offset = hs_start + j * step            (blocks 0–16)
+#   group 2 → offset = hs_start + 17*step + j*step    (blocks 17–28)
+#   group 3 → offset = hs_start + 29*step + j*step    (blocks 29–30)
+#
+# hs_start = file_size - 31*step  (31 float32 blocks at end of NEFIS file).
+#
+# Block layout verified by active-cell byte-scan against the NEFIS .def file
+# (DELFT3D-WAVE NEFIS 5.00, wavm-guad-Alboran_int).  The .def element order
+# for map-series is: TIME CODE HSIGN DIR PDIR PERIOD RTP DEPTH VELOC-X
+# VELOC-Y TRANSP-X TRANSP-Y DSPR DISSIP LEAK QB XP YP UBOT STEEPW WLENGTH
+# TPS TM02 TMM10 DHSIGN DRTM01 SETUP FX FY TP.  TIME is stored outside the
+# 31-block region (part of the NEFIS header); all remaining elements map to
+# binary block j = (.def index) − 1:
+#
+#   j=0:  CODE       j=1:  HSIGN      j=2:  DIR       j=3:  PDIR
+#   j=4:  PERIOD     j=5:  RTP        j=6:  DEPTH      j=7:  VELOC-X (zeros)
+#   j=8:  VELOC-Y    j=9:  TRANSP-X   j=10: TRANSP-Y   j=11: DSPR
+#   j=12: DISSIP     j=13: LEAK       j=14: QB          j=15: XP
+#   j=16: YP         j=17: UBOT       j=18: STEEPW      j=19: WLENGTH
+#   j=20: TPS        j=21: TM02       j=22: TMM10       j=23: DHSIGN (skip)
+#   j=24: DRTM01     j=25: SETUP      j=26: FX          j=27: FY
+#   j=28: TP         j=29: WINDU      j=30: WINDV
 _DELFT_VAR_INDEX = {
-    # --- Group 1 (map-series, HSIGN onwards) ---
-    "hsign":    (1,  0),
-    "dir":      (1,  1),
-    "pdir":     (1,  2),
-    "period":   (1,  3),
-    "rtp":      (1,  4),
-    "depth":    (1,  5),
-    "veloc-y":  (1,  6),
-    "veloc-x":  (1,  7),
-    "transp-x": (1,  8),
-    "transp-y": (1,  9),
-    "dspr":     (1, 10),
-    "dissip":   (1, 11),
-    "leak":     (1, 12),
-    "qb":       (1, 13),
-    # --- Group 2 (map-series, UBOT onwards; hs_start + 16*step) ---
-    "ubot":     (2,  0),
-    "steepw":   (2,  1),
-    "wlength":  (2,  2),
-    "tps":      (2,  3),
-    "tm02":     (2,  4),
-    "tmm10":    (2,  5),
-    # j=6 is DHSIGN (internal, skip)
-    "drtm01":   (2,  7),
-    "setup":    (2,  8),
-    "fx":       (2,  9),
-    "fy":       (2, 10),
-    # --- Group 3 (WIND block; hs_start + 28*step + 4) ---
-    "windu":    (3,  0),
-    "windv":    (3,  1),
+    # --- Group 1 ---
+    "hsign":    (1,  1),   # block  1:  0–5.1 m, 95 808 active cells ✓
+    "dir":      (1,  2),   # block  2:  8–360°  ✓
+    "pdir":     (1,  3),   # block  3:  5–255°
+    "period":   (1,  4),   # block  4:  0.7–15 s ✓
+    "rtp":      (1,  5),   # block  5
+    "depth":    (1,  6),   # block  6:  0–547 m ✓
+    "veloc-x":  (1,  7),   # block  7:  all 0 (no current forcing) ✓
+    "veloc-y":  (1,  8),   # block  8:  all 0 (no current forcing) ✓
+    "transp-x": (1,  9),   # block  9
+    "transp-y": (1, 10),   # block 10
+    "dspr":     (1, 11),   # block 11:  0–77°  ✓
+    "dissip":   (1, 12),   # block 12
+    "leak":     (1, 13),   # block 13
+    "qb":       (1, 14),   # block 14
+    # --- Group 2 (starts at block 17 = hs_start + 17*step) ---
+    "ubot":     (2,  0),   # block 17:  0–2.43 m/s ✓
+    "steepw":   (2,  1),   # block 18
+    "wlength":  (2,  2),   # block 19
+    "tps":      (2,  3),   # block 20:  1–15.5 s ✓
+    "tm02":     (2,  4),   # block 21:  0.6–14.7 s ✓
+    "tmm10":    (2,  5),   # block 22:  0–14.9 s ✓
+    # j=6 → block 23 is DHSIGN (internal, not exposed)
+    "drtm01":   (2,  7),   # block 24
+    "setup":    (2,  8),   # block 25:  –2.84–0.71 m ✓
+    "fx":       (2,  9),   # block 26 ✓
+    "fy":       (2, 10),   # block 27 ✓
+    # --- Group 3 (starts at block 29 = hs_start + 29*step) ---
+    "windu":    (3,  0),   # block 29:  confirmed ✓
+    "windv":    (3,  1),   # block 30:  confirmed ✓
 }
 
-# NEFIS binary layout constants (standard DELFT3D-WAVE output)
-_NEFIS_FLOAT_BLOCKS = 30   # 28 map-series + 2 WIND float arrays
-_NEFIS_INT_BYTES    = 12   # TIME(4B) + CODE(4B) + TIME_wind(4B)
+# NEFIS binary layout constants (DELFT3D-WAVE NEFIS 5.00 map file).
+#
+# File structure:
+#   Bytes 0 .. hs_start-1 : NEFIS header / table structure
+#   Bytes hs_start .. end  : 31 contiguous float32 blocks, each of size
+#                            nmax * mmax * 4 bytes.
+#   hs_start = file_size - 31 * (nmax * mmax * 4)
+_NEFIS_FLOAT_BLOCKS = 31
 _NEFIS_FILL         = -9000.0
 
 
 def _delft_grid_params(case_dir, dat_name, grd_name):
-    """Read grid dimensions from .grd and compute hs_start from .dat size."""
+    """Read grid dimensions from .grd and compute hs_start + M-direction roll.
+
+    The NEFIS binary stores each N-row with a circular shift in the M-direction
+    relative to the .grd ordering: row n of the flat array starts at some M
+    offset M_start instead of M=0, wraps at M=mmax-1, then continues from M=0.
+    This function determines the shift (m_roll) so callers can correct for it
+    with np.roll(arr, -m_roll, axis=1).
+    """
     grd_path = case_dir / grd_name
     dat_path = case_dir / dat_name
 
+    # Read mmax, nmax AND the first ETA row (N=0) of X coordinates from .grd
     mmax = nmax = None
+    current = []
+    in_eta = False
+    x_row0 = []
+
     with open(grd_path, encoding="latin-1") as f:
         for line in f:
             s = line.strip()
-            if s.startswith("*") or "=" in s:
+            if not s or s.startswith("*"):
                 continue
-            parts = s.split()
-            if len(parts) == 2:
-                try:
-                    mmax, nmax = int(parts[0]), int(parts[1])
+            if "Missing" in s or "Coordinate" in s:
+                continue
+            if mmax is None and "=" not in s:
+                parts = s.split()
+                if len(parts) == 2:
+                    try:
+                        mmax, nmax = int(parts[0]), int(parts[1])
+                    except ValueError:
+                        pass
+                continue
+            if mmax is None:
+                continue
+            if s == "0 0 0":
+                continue
+            if s.startswith("ETA="):
+                if in_eta:
+                    # Second ETA= reached: first row is complete
+                    x_row0 = current
                     break
-                except ValueError:
-                    continue
+                in_eta = True
+                current = [float(v) for v in s.split()[2:]]
+            elif in_eta:
+                current.extend(float(v) for v in s.split())
+                if len(current) >= mmax:
+                    x_row0 = current[:mmax]
+                    break
+
     if mmax is None:
         raise ValueError(f"Cannot read grid dimensions from {grd_path}")
 
     step     = nmax * mmax * 4
-    hs_start = dat_path.stat().st_size - _NEFIS_FLOAT_BLOCKS * step - _NEFIS_INT_BYTES + 8
-    return {"nmax": nmax, "mmax": mmax, "hs_start": hs_start}
+    hs_start = dat_path.stat().st_size - _NEFIS_FLOAT_BLOCKS * step
+
+    # Compute M-direction roll: find the circular shift between .dat and .grd.
+    # The first valid X value in .grd row 0 is the M=M_v reference; locate its
+    # position in the first row of XP from the .dat to get the roll amount.
+    m_roll = 0
+    if len(x_row0) == mmax:
+        x_arr  = np.array(x_row0, dtype=float)
+        valid  = (x_arr > 100_000) & (x_arr < 800_000)
+        if valid.any():
+            m_v   = int(np.where(valid)[0][0])   # first valid M index in .grd
+            x_ref = float(x_arr[m_v])
+            with open(dat_path, "rb") as f:
+                f.seek(hs_start + 15 * step)     # XP block
+                xp_row0 = np.frombuffer(f.read(mmax * 4), dtype="<f4").copy().astype(float)
+            valid_xp = (xp_row0 > 100_000) & (xp_row0 < 800_000)
+            if valid_xp.any():
+                k      = int(np.argmin(np.abs(xp_row0 - x_ref)))
+                m_roll = (k - m_v) % mmax
+
+    return {"nmax": nmax, "mmax": mmax, "hs_start": hs_start, "m_roll": m_roll}
 
 
 def _delft_var_offset(gp, group, j):
-    hs = gp["hs_start"]
+    hs   = gp["hs_start"]
     step = gp["nmax"] * gp["mmax"] * 4
     if group == 1:
-        return hs + j * step
+        return hs + j * step                  # blocks 0-13
     if group == 2:
-        return hs + 16 * step + j * step
-    return hs + 28 * step + 4 + j * step  # group 3: WIND
+        return hs + 17 * step + j * step      # blocks 17-27 (XP/YP at 15-16)
+    return hs + 29 * step + j * step          # blocks 29-30 (WIND)
 
 
 def _delft_read_var(dat_path, varname, gp, fill_threshold):
@@ -526,20 +601,33 @@ def _delft_read_var(dat_path, varname, gp, fill_threshold):
         f.seek(offset)
         arr = np.frombuffer(f.read(npts * 4), dtype="<f4").copy().astype(float)
     arr[arr < fill_threshold] = np.nan
-    return arr.reshape(gp["nmax"], gp["mmax"])
+    arr = arr.reshape(gp["nmax"], gp["mmax"])
+    if gp.get("m_roll", 0):
+        arr = np.roll(arr, -gp["m_roll"], axis=1)
+    return arr
 
 
 def _delft_read_coords(dat_path, gp, fill_threshold):
-    """Read XP, YP coordinates and build active-cell mask."""
+    """Read XP, YP coordinates and build active-cell mask.
+
+    XP is at block 15 and YP at block 16 from hs_start in the NEFIS 5.00
+    file layout (verified by byte-scan: 98 % of cells fall in UTM easting
+    range 291 848 – 342 104, consistent with Alboran Sea UTM Zone 30N).
+    """
     step  = gp["nmax"] * gp["mmax"] * 4
     npts  = gp["nmax"] * gp["mmax"]
-    start = gp["hs_start"] + 14 * step   # XP is element 14 from HSIGN
+    start = gp["hs_start"] + 15 * step   # XP at block 15, YP at block 16
     with open(dat_path, "rb") as f:
         f.seek(start)
         x = np.frombuffer(f.read(npts * 4), dtype="<f4").copy().astype(float)
         y = np.frombuffer(f.read(npts * 4), dtype="<f4").copy().astype(float)
     x = x.reshape(gp["nmax"], gp["mmax"])
     y = y.reshape(gp["nmax"], gp["mmax"])
+    if gp.get("m_roll", 0):
+        x = np.roll(x, -gp["m_roll"], axis=1)
+        y = np.roll(y, -gp["m_roll"], axis=1)
+    # Active cells have valid UTM coordinates; inactive (land/outside) cells
+    # are stored as 0.0 in the NEFIS output.
     active = (x > 0) & (x < 1e6) & (y > 1e6)
     return x, y, active
 
