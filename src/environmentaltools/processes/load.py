@@ -558,8 +558,52 @@ def _delft_grid_params(case_dir, dat_name, grd_name):
     if mmax is None:
         raise ValueError(f"Cannot read grid dimensions from {grd_path}")
 
-    step     = nmax * mmax * 4
-    hs_start = dat_path.stat().st_size - _NEFIS_FLOAT_BLOCKS * step
+    step      = nmax * mmax * 4
+    file_size = dat_path.stat().st_size
+    hs_start  = file_size - _NEFIS_FLOAT_BLOCKS * step
+
+    # Validate hs_start; if the formula gives an invalid position (e.g. when
+    # the file was written with a different number of float blocks), scan
+    # candidate block-counts in descending order and pick the first one whose
+    # XP block (j=15) contains plausible UTM easting values.
+    def _xp_is_valid(hs_candidate):
+        """Return True if block 15 from hs_candidate looks like UTM eastings."""
+        xp_off = hs_candidate + 15 * step
+        if hs_candidate < 0 or xp_off + mmax * 4 > file_size:
+            return False
+        with open(dat_path, "rb") as _f:
+            _f.seek(xp_off)
+            row = np.frombuffer(_f.read(mmax * 4), dtype="<f4")
+        valid_frac = ((row > 100_000) & (row < 900_000)).mean()
+        return valid_frac > 0.05          # ≥5 % of first row in UTM-east range
+
+    if not _xp_is_valid(hs_start):
+        # Try nearby block counts (±6 around the canonical 31)
+        found = False
+        for nblocks in range(_NEFIS_FLOAT_BLOCKS + 6, _NEFIS_FLOAT_BLOCKS - 7, -1):
+            candidate = file_size - nblocks * step
+            if _xp_is_valid(candidate):
+                hs_start = candidate
+                found = True
+                break
+        if not found:
+            approx_blocks = file_size / step if step else 0
+            hint = (
+                f" The file can hold only ~{approx_blocks:.1f} blocks of that "
+                f"size, which strongly suggests that '{dat_path.name}' and the "
+                f"supplied .grd file (giving {nmax}×{mmax}) belong to "
+                "different grids — check that dat_name and grd_name refer to "
+                "the same grid (e.g. both 'int' or both 'ext')."
+                if approx_blocks < 15 else
+                " Tried all block counts in "
+                f"{_NEFIS_FLOAT_BLOCKS-6}–{_NEFIS_FLOAT_BLOCKS+6} — none "
+                "produced a valid XP block."
+            )
+            raise ValueError(
+                f"Cannot locate float-data region in {dat_path.name}: "
+                f"file_size={file_size} B, step={step} B "
+                f"({nmax}×{mmax}×4).{hint}"
+            )
 
     # Compute M-direction roll: find the circular shift between .dat and .grd.
     # The first valid X value in .grd row 0 is the M=M_v reference; locate its
