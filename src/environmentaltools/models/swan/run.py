@@ -100,8 +100,9 @@ def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
                 row["error"] = f"grid {g}: missing outputs (return code {row[f'rc_{g}']})"
                 break
         res = res_root / case
-        res.mkdir(parents=True, exist_ok=True)
-        (res / "done.json").unlink(missing_ok=True)
+        if res.exists():                                        # a re-run replaces all previous results
+            shutil.rmtree(res)
+        res.mkdir(parents=True)
         archived = {f"map_{g}.tab" for g in (cfg["outputs"].get("maps") or {}) if cfg.map_store(g) == "archive"}
         for f in wd.iterdir():
             if f.name in archived:

@@ -47,9 +47,32 @@ def plot_grids(cfg, ax=None, every=10, depth=True):
     return ax
 
 
+def _map_shape(cfg, grid):
+    """Node shape ``(ny, nx)`` of the map of ``grid`` (whole grid or subgrid)."""
+    sub = ((cfg["outputs"].get("maps") or {}).get(grid) or {}).get("subgrid")
+    if sub:
+        i1, i2, j1, j2 = sub
+        return j2 - j1 + 1, i2 - i1 + 1
+    return cfg.grids()[grid].shape
+
+
+def _km_axes(ax):
+    from matplotlib.ticker import FuncFormatter
+
+    f = FuncFormatter(lambda v, _: f"{v / 1000:.0f}")
+    ax.xaxis.set_major_formatter(f)
+    ax.yaxis.set_major_formatter(f)
+    ax.set_xlabel("x (km)", fontsize=8)
+    ax.set_ylabel("y (km)", fontsize=8)
+    ax.tick_params(labelsize=7)
+
+
 def plot_map(cfg, case, grid, quantity="hs", ax=None, cmap="viridis", arrows="dir", n_arrows=20, folder=None,
-             **kw):
+             levels=20, **kw):
     """Map of a result quantity for a case (from ``map_<grid>.tab``), with direction arrows.
+
+    The values are drawn on the structured (curvilinear or regular) grid, so dry nodes
+    and land stay blank.
 
     Args:
         n_arrows (int): Approximate number of arrows along each axis (one per spatial bin).
@@ -57,20 +80,39 @@ def plot_map(cfg, case, grid, quantity="hs", ax=None, cmap="viridis", arrows="di
     m = read_map(cfg, case, grid, folder)
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 7))
-    ok = m[quantity].notna() & (m.get("depth", m[quantity]) > cfg["set"]["depmin"])
-    tc = ax.tricontourf(m.x[ok], m.y[ok], m[quantity][ok], levels=20, cmap=cmap, **kw)
-    plt.colorbar(tc, ax=ax, label=quantity)
+    wet = m[quantity].notna()
+    shape = _map_shape(cfg, grid)
+    structured = len(m) == shape[0] * shape[1]
+    if structured:
+        # land = nodes dry in the INPUT bathymetry (output DEPTH includes the wave set-up, so land
+        # nodes stored at DEPMIN can appear slightly wet with Hs ≈ 0)
+        dep = cfg.grids()[grid].depth
+        sub = ((cfg["outputs"].get("maps") or {}).get(grid) or {}).get("subgrid")
+        if sub:
+            i1, i2, j1, j2 = sub
+            dep = dep[j1:j2 + 1, i1:i2 + 1]
+        wet &= pd.Series(np.nan_to_num(dep, nan=0).ravel() > cfg["set"]["depmin"], index=m.index)
+    elif "depth" in m:
+        wet &= m.depth > cfg["set"]["depmin"]
+    if structured:
+        X, Y = m.x.to_numpy().reshape(shape), m.y.to_numpy().reshape(shape)
+        Z = np.ma.masked_where(~wet.to_numpy().reshape(shape), m[quantity].to_numpy().reshape(shape))
+        tc = ax.contourf(X, Y, Z, levels=levels, cmap=cmap, **kw)
+    else:                                                      # unknown layout: scattered nodes
+        tc = ax.tricontourf(m.x[wet], m.y[wet], m[quantity][wet], levels=levels, cmap=cmap, **kw)
+    plt.colorbar(tc, ax=ax, label=quantity, shrink=0.8)
     if arrows and arrows in m:
-        s = m[ok & m[arrows].notna()]
+        s = m[wet & m[arrows].notna()]
         bx = np.floor((s.x - s.x.min()) / (np.ptp(s.x) / n_arrows + 1e-9))
         by = np.floor((s.y - s.y.min()) / (np.ptp(s.y) / n_arrows + 1e-9))
         s = s.groupby([bx, by]).first()
         a = np.deg2rad(270 - s[arrows])          # nautical (from) → cartesian (towards)
-        ax.quiver(s.x, s.y, np.cos(a), np.sin(a), color="k", width=0.003, headwidth=4,
-                  scale=1.5 * n_arrows, pivot="middle")
-    ax.set_xlim(m.x[ok].min(), m.x[ok].max())
-    ax.set_ylim(m.y[ok].min(), m.y[ok].max())
+        ax.quiver(s.x, s.y, np.cos(a), np.sin(a), color="k", width=0.0025, headwidth=4,
+                  scale=1.6 * n_arrows, pivot="middle")
+    ax.set_xlim(m.x[wet].min(), m.x[wet].max())
+    ax.set_ylim(m.y[wet].min(), m.y[wet].max())
     ax.set_aspect("equal")
+    _km_axes(ax)
     return ax
 
 
