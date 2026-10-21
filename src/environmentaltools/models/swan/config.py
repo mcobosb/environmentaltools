@@ -26,6 +26,7 @@ DEFAULTS = {
     "project": "swan",
     "cases_dir": "cases",
     "results_dir": "results",
+    "archive_dir": None,
     "run_dir": None,
     "executable": "auto",
     "search_dirs": ["C:/Program Files/Deltares", "C:/Program Files (x86)/Deltares", "C:/SWAN", "/usr/local/bin"],
@@ -55,6 +56,7 @@ DEFAULTS = {
         "point_quantities": ["XP", "YP", "DEPTH", "HSIGN", "TPS", "DIR", "DSPR", "WIND"],
         "point_spectra": False,
         "maps": {},
+        "figures": None,
     },
     "states": {
         "file": None,
@@ -127,6 +129,15 @@ class SwanConfig:
         return self.path(self.data["results_dir"])
 
     @property
+    def archive_dir(self):
+        """Folder for heavy outputs kept only on the computing machine (maps with ``store: archive``)."""
+        return self.path(self.data["archive_dir"])
+
+    def map_store(self, grid):
+        """Where the map of ``grid`` is kept: ``"results"`` (default) or ``"archive"``."""
+        return ((self.data["outputs"].get("maps") or {}).get(grid) or {}).get("store", "results")
+
+    @property
     def grid_names(self):
         """Grid names in computation order (parents before nested grids)."""
         names, pending = [], list(self.data["grids"])
@@ -197,6 +208,13 @@ class SwanConfig:
             if not g.get("nested_in") and not g.get("boundaries"):
                 raise ValueError(f"Grid '{name}' is not nested and has no 'boundaries'")
         self.grid_names  # checks cycles
+        for g, m in (d["outputs"].get("maps") or {}).items():
+            if g not in d["grids"]:
+                raise ValueError(f"Map for unknown grid '{g}'")
+            if m.get("store", "results") not in ("results", "archive"):
+                raise ValueError(f"Map '{g}': store must be 'results' or 'archive'")
+            if m.get("store") == "archive" and not d.get("archive_dir"):
+                raise ValueError(f"Map '{g}' has store: archive but there is no 'archive_dir'")
         for v in d["variants"]:
             if "grids" in d["variants"][v]:
                 raise ValueError(f"Variant '{v}': changing grids is not supported; use another project")

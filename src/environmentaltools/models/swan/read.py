@@ -196,10 +196,19 @@ def read_points(cfg, cases=None, grids=None):
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
 
-def read_map(cfg, case, grid):
-    """Map output (``map_<grid>.tab``) of a case as a DataFrame (one row per node)."""
+def read_map(cfg, case, grid, folder=None):
+    """Map output (``map_<grid>.tab``) of a case as a DataFrame (one row per node).
+
+    Looked for in ``folder`` (if given), then ``results_dir/<case>`` and ``archive_dir/<case>``.
+    """
     m = cfg["outputs"]["maps"][grid]
-    return read_table(cfg.results_dir / case / f"map_{grid}.tab", m["quantities"])
+    name = f"map_{grid}.tab"
+    places = [Path(folder)] if folder else []
+    places += [cfg.results_dir / case] + ([cfg.archive_dir / case] if cfg.archive_dir else [])
+    for p in places:
+        if (p / name).exists():
+            return read_table(p / name, m["quantities"])
+    raise FileNotFoundError(f"{name} of {case} not found in {[str(p) for p in places]}")
 
 
 def read_spectra_case(cfg, case, grid):

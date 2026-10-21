@@ -34,13 +34,16 @@ def is_done(cfg, case):
     return (cfg.results_dir / case / "done.json").exists()
 
 
-def run(cfg, filter=None, cases=None, threads=None, verbose=True):
+def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
     """Run the prepared cases that are not finished yet.
 
     For each case: copy the case and the ``_common`` files to ``run_dir`` (local
     disk), run every grid in order (``INPUT_<k>_<grid>`` → ``INPUT``; ``PRINT`` →
     ``PRINT_<grid>``), stop if a grid fails, and copy the outputs (tables,
     spectra, PRINT, Errfile, screen logs, INPUT files) to ``results_dir/<case>``.
+    Maps with ``store: archive`` are moved to ``archive_dir/<case>`` instead (heavy
+    files kept only on the computing machine). With ``outputs: figures:``, a PNG of
+    every saved map is drawn on the computing machine and copied to the results.
     A ``done.json`` marks finished cases; ``results_dir/run_log.csv`` keeps one
     line per case.
 
@@ -49,6 +52,7 @@ def run(cfg, filter=None, cases=None, threads=None, verbose=True):
         filter (str | None): Run only cases whose name contains this text.
         cases (list[str] | None): Run only these cases.
         threads (int | None): OpenMP threads (default: ``threads`` of the YAML or all cores).
+        force (bool): Run again cases that are already finished (``done.json`` is replaced).
 
     Returns:
         pd.DataFrame: Log of this execution.
@@ -63,7 +67,7 @@ def run(cfg, filter=None, cases=None, threads=None, verbose=True):
         todo = [c for c in todo if filter in c]
     if cases:
         todo = [c for c in todo if c in set(cases)]
-    pending = [c for c in todo if not is_done(cfg, c)]
+    pending = todo if force else [c for c in todo if not is_done(cfg, c)]
     if verbose:
         print(f"SWAN: {exe}\nCases: {len(todo)} | pending: {len(pending)} | run folder: {run_root}")
 
@@ -97,10 +101,28 @@ def run(cfg, filter=None, cases=None, threads=None, verbose=True):
                 break
         res = res_root / case
         res.mkdir(parents=True, exist_ok=True)
+        (res / "done.json").unlink(missing_ok=True)
+        archived = {f"map_{g}.tab" for g in (cfg["outputs"].get("maps") or {}) if cfg.map_store(g) == "archive"}
         for f in wd.iterdir():
+            if f.name in archived:
+                continue
             if f.name.endswith((".tab", ".sp2", ".log")) and not f.name.startswith("nest_") or \
                     f.name.startswith(("PRINT_", "Errfile_", "INPUT_")) or f.name == "case.json":
                 shutil.copy2(f, res / f.name)
+        if ok and archived:
+            arch = cfg.archive_dir / case
+            arch.mkdir(parents=True, exist_ok=True)
+            for name in archived:
+                if (wd / name).exists():
+                    shutil.copy2(wd / name, arch / name)
+        if ok and cfg["outputs"].get("figures"):
+            try:
+                from .plot import plot_case_maps
+                import matplotlib
+                matplotlib.use("Agg")
+                plot_case_maps(cfg, case, folder=wd, file_name=res / f"maps_{case}.png")
+            except Exception as exc:                            # a figure never stops the batch
+                row["figure_error"] = str(exc)[:200]
         row["ok"] = ok
         if ok:
             (res / "done.json").write_text(json.dumps(row, indent=1))

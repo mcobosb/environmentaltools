@@ -6,6 +6,7 @@ project: my_project            # PROJECT name in SWAN (≤ 16 characters)
 cases_dir: cases               # generated cases (+ _common/ with grid files and cases.csv)
 results_dir: results           # results copied back here (one folder per case, done.json when finished)
 run_dir: null                  # local folder where SWAN runs (e.g. C:/SWAN_RUNS/my_project); null → <results>/../_run
+archive_dir: null              # local folder for heavy outputs not copied to results (maps with store: archive)
 executable: auto               # path to swan_omp.exe / swan.exe, or auto (searched in search_dirs)
 search_dirs: ["C:/Program Files/Deltares", "C:/SWAN"]
 threads: null                  # OpenMP threads (null → all cores)
@@ -59,6 +60,8 @@ outputs:
   point_spectra: false         # 2-D spectra at the points (spec_<grid>.sp2)
   maps:                        # optional maps per grid (whole grid or subgrid ix1 ix2 iy1 iy2)
     inner: {quantities: [XP, YP, DEPTH, HSIGN, TPS, DIR, DSPR], subgrid: null}
+    # outer: {quantities: [...], store: archive}   # kept in archive_dir only (not copied to results_dir)
+  figures: null                # e.g. {quantity: hs, dpi: 120, n_arrows: 20}: PNG of every map per case → results
 
 # Sea states (one case per state and variant). Directions are nautical (coming from).
 states:

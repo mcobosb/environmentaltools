@@ -114,3 +114,30 @@ def test_run_with_fake_executable(project, tmp_path):
     assert len(s) == 4 and s.converged.all()
     pts = swan.read_points(cfg)
     assert set(pts.grid) == {"outer", "inner"} and len(pts) == 2 * 2 * 2 and "Hs" in pts   # cases × grids × points
+
+
+@pytest.mark.skipif(__import__("platform").system() == "Windows", reason="fake executable is a shell script")
+def test_archive_maps_and_figures(project, tmp_path):
+    exe = tmp_path / "fake_swan"
+    # points: 2 rows (x y hs); maps: the whole grid (x y hs) read from the coordinates of the regular grid
+    exe.write_text("#!/bin/sh\n"
+                   "for f in $(grep -o \"'points_[a-z]*\\.tab'\" INPUT | tr -d \"'\"); do printf '1 2 0.5\\n3 4 0.7\\n' > $f; done\n"
+                   "for f in $(grep -o \"'map_[a-z]*\\.tab'\" INPUT | tr -d \"'\"); do "
+                   "awk 'BEGIN{for(i=0;i<20;i++)for(j=0;j<20;j++)print 3000+100*i, 4000+100*j, 1+i/20}' > $f; done\n"
+                   "printf ' iteration 3; sweep 4\\n accuracy OK in  98.00 %% of wet grid points ( 97.00 %% required)\\n' > PRINT\n")
+    exe.chmod(0o755)
+    cfg = swan.load_config(project.file, {
+        "executable": str(exe), "archive_dir": str(tmp_path / "archive"), "variants": {},
+        "outputs": {"point_quantities": ["XP", "YP", "HSIGN"],
+                    "maps": {"inner": {"quantities": ["XP", "YP", "HSIGN"], "store": "archive"}},
+                    "figures": {"quantity": "hs", "dpi": 50}}})
+    swan.prepare(cfg, verbose=False, overwrite=True)
+    log = swan.run(cfg, cases=["1"], verbose=False)
+    assert log.ok.all() and "figure_error" not in log
+    assert (tmp_path / "archive" / "1" / "map_inner.tab").exists()
+    assert not (cfg.results_dir / "1" / "map_inner.tab").exists()
+    assert (cfg.results_dir / "1" / "maps_1.png").exists()
+    assert len(swan.read_map(cfg, "1", "inner")) == 400              # found in archive_dir
+    assert swan.run(cfg, cases=["1"], force=True, verbose=False).ok.all()
+    with pytest.raises(ValueError):
+        swan.load_config(project.file, {"outputs": {"maps": {"inner": {"quantities": ["HSIGN"], "store": "archive"}}}})
