@@ -27,7 +27,8 @@ grids:
       #     - {s: 36747, hs: 1.0}
   inner:
     grd: grids/inner.grd
-    dep: grids/inner.dep
+    dep: grids/inner.dep       # or, without .dep, interpolate an xyz file onto the nodes:
+    # bathymetry: {file: bathy.xyz, columns: [0, 1, 2], positive_down: true, method: linear}
     nested_in: outer
   # regular grid example:
   # local:

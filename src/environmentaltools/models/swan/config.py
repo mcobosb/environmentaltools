@@ -152,22 +152,27 @@ class SwanConfig:
         return self._grids
 
     def load_grid(self, name):
+        """Grid ``name``: Delft3D ``grd`` (+ ``dep``) or ``regular``; ``bathymetry`` (xyz file)
+        interpolates the depth onto the nodes when there is no ``dep``."""
         g = self.data["grids"][name]
         if "grd" in g:
-            return Grid.from_delft(self.path(g["grd"]), self.path(g.get("dep")), name)
-        r = g["regular"]
-        grid = Grid.regular_grid(r["xp"], r["yp"], r.get("alp", 0.0), r["dx"], r["dy"], r["nx"], r["ny"],
-                                 name, g.get("spherical", False))
-        if "bathymetry" in g:
+            grid = Grid.from_delft(self.path(g["grd"]), self.path(g.get("dep")), name)
+        else:
+            r = g["regular"]
+            grid = Grid.regular_grid(r["xp"], r["yp"], r.get("alp", 0.0), r["dx"], r["dy"], r["nx"], r["ny"],
+                                     name, g.get("spherical", False))
+        if "bathymetry" in g and grid.depth is None:
             import pandas as pd
 
             b = g["bathymetry"]
-            xyz = pd.read_csv(self.path(b["file"]), sep=b.get("sep", r"\s+|,"), engine="python",
-                              header=b.get("header", None))
+            xyz = pd.read_csv(self.path(b["file"]), sep=b.get("sep", r"[\s,;]+"), engine="python",
+                              header=b.get("header", None), comment=b.get("comment", "#"))
             cols = b.get("columns", [0, 1, 2])
             pick = (lambda c: xyz[c]) if isinstance(cols[0], str) else (lambda c: xyz.iloc[:, c])
             grid.set_depth_from_points(pick(cols[0]), pick(cols[1]), pick(cols[2]),
                                        b.get("method", "linear"), b.get("positive_down", True))
+        if grid.depth is None:
+            raise ValueError(f"Grid '{name}' has no depth: give 'dep' or 'bathymetry'")
         return grid
 
     def variant(self, name):
