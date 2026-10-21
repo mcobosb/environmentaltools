@@ -1,0 +1,73 @@
+# SWAN project template (environmentaltools.models.swan)
+# Relative paths are resolved against the folder of this file.
+# Workflow:  cfg = swan.load_config("swan.yaml"); swan.prepare(cfg); swan.run(cfg); swan.read_points(cfg)
+
+project: my_project            # PROJECT name in SWAN (≤ 16 characters)
+cases_dir: cases               # generated cases (+ _common/ with grid files and cases.csv)
+results_dir: results           # results copied back here (one folder per case, done.json when finished)
+run_dir: null                  # local folder where SWAN runs (e.g. C:/SWAN_RUNS/my_project); null → <results>/../_run
+executable: auto               # path to swan_omp.exe / swan.exe, or auto (searched in search_dirs)
+search_dirs: ["C:/Program Files/Deltares", "C:/SWAN"]
+threads: null                  # OpenMP threads (null → all cores)
+timeout_hours: 3               # per grid and case
+keep_run_dir: false            # keep the local run folder of finished cases
+
+# Grids in any order; a nested grid gives `nested_in` and is forced by the 2-D spectra of its parent
+# along its whole perimeter (as Delft3D-WAVE does). A non-nested grid needs `boundaries`.
+grids:
+  outer:
+    grd: grids/outer.grd       # Delft3D/RGFGRID curvilinear grid …
+    dep: grids/outer.dep       # … and depth (positive downwards)
+    boundaries:
+      - segment_ij: [81, 0, 81, 192]          # i1 j1 i2 j2 (SWAN ix, iy = grid i, j)
+      # - side: S                             # or a whole side: N, NW, W, SW, S, SE, E, NE (ccw: true)
+      # - segment_xy: [[x1, y1], [x2, y2]]
+      #   variable:                           # optional along-boundary variation relative to the state:
+      #     - {s: 0, hs: 0.78, dir: 19}       #   s = distance (m) from the first point; hs/tp factors; dir offset (deg)
+      #     - {s: 36747, hs: 1.0}
+  inner:
+    grd: grids/inner.grd
+    dep: grids/inner.dep
+    nested_in: outer
+  # regular grid example:
+  # local:
+  #   regular: {xp: 550000, yp: 4060000, alp: 0, dx: 50, dy: 50, nx: 201, ny: 151}
+  #   bathymetry: {file: bathy.xyz, columns: [0, 1, 2], positive_down: true, method: linear}
+  #   nested_in: inner
+
+spectral_grid: {ndir: 36, fmin: 0.05, fmax: 1.0, msc: 24}     # msc intervals → msc + 1 frequencies
+set: {level: 0.0, nor: 90.0, depmin: 0.05, maxmes: 1000, maxerr: 2, grav: 9.81, rho: 1025.0, inrhog: 1,
+      convention: NAUTICAL}
+boundary_spectrum: {shape: JONSWAP, gamma: 3.3, period: PEAK, spreading: POWER, spreading_value: 4.0}
+
+# Named SWAN commands, written verbatim and in this order. A variant can replace one or remove it (null).
+physics:
+  gen3: GEN3 KOMEN DRAG WU
+  wcap: WCAP KOMEN delta=0
+  breaking: BREAK CON 1.00 0.73
+  friction: FRIC JON 0.067
+  limiter: LIM 10 1
+  setup: SETUP
+numerics:
+  dir: NUM DIR cdd=0.50 SIGIM css=0.50
+  accur: NUM ACCUR 0.02 0.02 0.02 97.0 50
+
+outputs:
+  points: points.csv           # CSV with columns name, x, y (grid coordinates); output in every grid
+  point_quantities: [XP, YP, DEPTH, HSIGN, TPS, DIR, DSPR, WIND]
+  point_spectra: false         # 2-D spectra at the points (spec_<grid>.sp2)
+  maps:                        # optional maps per grid (whole grid or subgrid ix1 ix2 iy1 iy2)
+    inner: {quantities: [XP, YP, DEPTH, HSIGN, TPS, DIR, DSPR], subgrid: null}
+
+# Sea states (one case per state and variant). Directions are nautical (coming from).
+states:
+  file: states.csv             # CSV or Excel
+  id: id                       # id column (null → row index)
+  columns: {Hs: Hs, Tp: Tp, Dir: DirM, Vv: Vv, DirV: DirV, spreading: null, level: null}
+  min_wind: 0.01               # wind speeds below this are raised to it (SWAN 41.51 fails with 0 m/s)
+
+# Optional variants: every state is run with each variant (case name <id>_<variant>).
+variants: {}
+#  S1: {}
+#  S0: {physics: {wcap: WCAP KOMEN delta=1}}
+#  D2: {boundary_spectrum: {spreading_value: 2.0}}

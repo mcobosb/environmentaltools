@@ -2,6 +2,10 @@
 
 All relevant project updates are documented here:
 
+## [Unreleased]
+### Added
+- new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
+
 ## [3.2.7] - 2026-04-29
 ### Added
 - fix range for upper tail threshold (potinar)

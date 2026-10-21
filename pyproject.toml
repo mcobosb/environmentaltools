@@ -62,6 +62,7 @@ dependencies = [
     "pypdf2",
     "pyproj",
     "pyshp",
+    "pyyaml",  # models/swan configuration files
     "shapely",  # geometry operations in spatiotemporal/raster.py
     "python-dotenv",
     "pytmd",  # spectral/analysis module

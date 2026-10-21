@@ -33,6 +33,7 @@ Functions for reading various file formats including Excel, CSV, NetCDF, and oth
    xlsx
    netcdf
    ascii_tiff
+   dap_ascii
    kmz
    shp
    mat

@@ -1,0 +1,120 @@
+"""Batch execution of prepared SWAN cases (resumable; nested grids run in sequence)."""
+
+import json
+import shutil
+import time
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+
+from ..common.execution import describe_return_code, find_executable, library_environment, run_process
+from .cases import COMMON
+
+EXECUTABLES = ["swan_omp.exe", "swan.exe", "swan_omp", "swan"]
+
+
+def swan_executable(cfg):
+    """SWAN executable: the configured path or, with ``executable: auto``, the first
+    ``swan_omp.exe``/``swan.exe`` found in ``search_dirs`` (Delft3D ships SWAN in
+    ``…\\x64\\swan\\bin`` or ``kernels\\x64\\bin``)."""
+    exe = cfg["executable"]
+    if exe and exe != "auto":
+        p = cfg.path(exe)
+        if not p.exists():
+            raise FileNotFoundError(f"SWAN executable not found: {p}")
+        return p
+    p = find_executable(EXECUTABLES, cfg["search_dirs"])
+    if p is None:
+        raise FileNotFoundError(f"No SWAN executable in {cfg['search_dirs']}; set 'executable:' in the YAML")
+    return p
+
+
+def is_done(cfg, case):
+    return (cfg.results_dir / case / "done.json").exists()
+
+
+def run(cfg, filter=None, cases=None, threads=None, verbose=True):
+    """Run the prepared cases that are not finished yet.
+
+    For each case: copy the case and the ``_common`` files to ``run_dir`` (local
+    disk), run every grid in order (``INPUT_<k>_<grid>`` → ``INPUT``; ``PRINT`` →
+    ``PRINT_<grid>``), stop if a grid fails, and copy the outputs (tables,
+    spectra, PRINT, Errfile, screen logs, INPUT files) to ``results_dir/<case>``.
+    A ``done.json`` marks finished cases; ``results_dir/run_log.csv`` keeps one
+    line per case.
+
+    Args:
+        cfg (SwanConfig): Configuration.
+        filter (str | None): Run only cases whose name contains this text.
+        cases (list[str] | None): Run only these cases.
+        threads (int | None): OpenMP threads (default: ``threads`` of the YAML or all cores).
+
+    Returns:
+        pd.DataFrame: Log of this execution.
+    """
+    exe = swan_executable(cfg)
+    env = library_environment(exe, threads=threads or cfg["threads"])
+    root, res_root = cfg.cases_dir, cfg.results_dir
+    run_root = cfg.path(cfg["run_dir"]) if cfg["run_dir"] else res_root.parent / "_run"
+    timeout = cfg["timeout_hours"] * 3600 if cfg["timeout_hours"] else None
+    todo = sorted(d.name for d in root.iterdir() if d.is_dir() and d.name != COMMON and (d / "case.json").exists())
+    if filter:
+        todo = [c for c in todo if filter in c]
+    if cases:
+        todo = [c for c in todo if c in set(cases)]
+    pending = [c for c in todo if not is_done(cfg, c)]
+    if verbose:
+        print(f"SWAN: {exe}\nCases: {len(todo)} | pending: {len(pending)} | run folder: {run_root}")
+
+    log = []
+    for k, case in enumerate(pending, 1):
+        meta = json.loads((root / case / "case.json").read_text())
+        wd = run_root / case
+        if wd.exists():
+            shutil.rmtree(wd)
+        shutil.copytree(root / case, wd)
+        for f in (root / COMMON).iterdir():
+            shutil.copy2(f, wd / f.name)
+        row = {"case": case, "start": datetime.now().isoformat(timespec="seconds")}
+        ok = True
+        for st in meta["stages"]:
+            g = st["grid"]
+            shutil.copy2(wd / st["input"], wd / "INPUT")
+            for f in ("PRINT", "Errfile", "norm_end"):
+                (wd / f).unlink(missing_ok=True)
+            t0 = time.time()
+            rc = run_process(exe, wd, env, wd / f"screen_{g}.log", timeout)
+            row[f"min_{g}"] = round((time.time() - t0) / 60, 2)
+            row[f"rc_{g}"] = describe_return_code(rc)
+            for f in ("PRINT", "Errfile"):
+                if (wd / f).exists():
+                    (wd / f).replace(wd / f"{f}_{g}")
+            expected = [v for v in meta["outputs"][g].values() if v]
+            ok = all((wd / f).exists() for f in expected) and (wd / f"PRINT_{g}").exists()
+            if not ok:
+                row["error"] = f"grid {g}: missing outputs (return code {row[f'rc_{g}']})"
+                break
+        res = res_root / case
+        res.mkdir(parents=True, exist_ok=True)
+        for f in wd.iterdir():
+            if f.name.endswith((".tab", ".sp2", ".log")) and not f.name.startswith("nest_") or \
+                    f.name.startswith(("PRINT_", "Errfile_", "INPUT_")) or f.name == "case.json":
+                shutil.copy2(f, res / f.name)
+        row["ok"] = ok
+        if ok:
+            (res / "done.json").write_text(json.dumps(row, indent=1))
+            if not cfg["keep_run_dir"]:
+                shutil.rmtree(wd, ignore_errors=True)
+        log.append(row)
+        if verbose:
+            times = ", ".join(f"{s['grid']} {row.get('min_' + s['grid'], '-')} min" for s in meta["stages"])
+            print(f"[{k}/{len(pending)}] {case}: {'OK' if ok else 'FAILED – ' + row['error']} ({times})")
+        if not ok and k == 1:
+            print(f"The first case failed: check screen_*.log and PRINT_* in {wd}")
+            break
+    df = pd.DataFrame(log)
+    if len(df):
+        f = res_root / "run_log.csv"
+        df.to_csv(f, mode="a", header=not f.exists(), index=False)
+    return df
