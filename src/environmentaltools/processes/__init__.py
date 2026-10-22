@@ -28,6 +28,7 @@ from .waves import (
 # Coastal processes
 from .coastal import (
     slopes,
+    bed_slope,
     kobayashi_transport,
     sediment_transport_Kobayashi,
     sediment_transport_CERC,
@@ -71,6 +72,7 @@ __all__ = [
     "storm_surge_from_waves",
     # Coastal processes
     "slopes",
+    "bed_slope",
     "kobayashi_transport",
     "sediment_transport_Kobayashi",
     "sediment_transport_CERC",

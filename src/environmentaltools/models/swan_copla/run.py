@@ -3,7 +3,7 @@
 import os
 import shutil
 
-from environmentaltools.processes.coastal import kobayashi_transport, slopes
+from environmentaltools.processes.coastal import bed_slope, kobayashi_transport
 
 from ..common.execution import run_executable
 from .inputs import write_copla_input, write_swan_input
@@ -48,7 +48,7 @@ def nesting(k, l, params, data, swan_executable=None, copla_executable=None):
 
     Writes the local SWAN input and runs SWAN (unless ``{case}.mat`` already
     exists), writes the COPLA input from the SWAN results and runs COPLA, reads
-    both results, computes the bed slope along the waves and the Kobayashi et
+    both results, computes the bed slope and the Kobayashi et
     al. (2008) transport with the local SWAN wave height and direction.
 
     Args:
@@ -83,9 +83,10 @@ def nesting(k, l, params, data, swan_executable=None, copla_executable=None):
     grid = read_swan(os.path.join(case_dir, case_id + ".mat"), grid)
 
     # SWAN (Dir) and COPLA (DirU, rotated in read_copla) directions share the SWAN Cartesian frame
-    grid["Sb"] = -slopes(grid, "DirM")  # bed slope along the waves, positive when the bed rises
+    grid["Sbx"], grid["Sby"] = bed_slope(grid["x"], grid["y"], grid["depth"])
     grid.update(kobayashi_transport(grid["depth"], grid["Setup"], grid["Hs"], data.loc[l, "Tp"], grid["kp"],
-                                    grid["DirM"], grid["Qb"], grid["U"], grid["DirU"], grid["Sb"], params))
+                                    grid["DirM"], grid["Qb"], grid["U"], grid["DirU"], grid["Sbx"], grid["Sby"],
+                                    params))
     return grid
 
 

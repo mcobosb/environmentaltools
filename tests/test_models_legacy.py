@@ -38,10 +38,11 @@ def test_deprecated_alias_points_to_new_function(old, new):
 def test_deprecated_alias_warns_and_renames_keywords(tmp_path):
     from environmentaltools import processes
 
-    (tmp_path / "OBPROF").write_text("1 3\n0.0 -2.0\n1.0 -1.0\n2.0 0.5\n9.0 9.0\n")
+    (tmp_path / "OBPROF").write_text("       1       3        0.0\n   0.000   -2.000\n   1.000   -1.000\n"
+                                     "   2.000    0.500\n")
     with pytest.warns(DeprecationWarning, match="models.cshore.read_output"):
         df = processes.read_cshore(file_="bprof", path=str(tmp_path))
-    assert df["z"].tolist() == [-2.0, -1.0, 0.5]
+    assert df["zb"].tolist() == [-2.0, -1.0, 0.5]
 
 
 def test_unknown_attribute_still_raises():
@@ -63,8 +64,9 @@ def test_legacy_kobayashi_matches_pure_function():
             "Qb": rng.uniform(0, 1, shape), "U": rng.uniform(0, 1.2, shape), "DirU": rng.uniform(0, 360, shape),
             "Sb": rng.uniform(-0.05, 0.05, shape)}
     data = pd.DataFrame({"Hs": [1.8], "Tp": [9.0]})
+    wave = np.deg2rad(grid["DirM"])
     new = kobayashi_transport(grid["depth"], grid["Setup"], grid["Hs"], 9.0, grid["kp"], grid["DirM"], grid["Qb"],
-                              grid["U"], grid["DirU"], grid["Sb"], KOBAYASHI)
+                              grid["U"], grid["DirU"], grid["Sb"] * np.cos(wave), grid["Sb"] * np.sin(wave), KOBAYASHI)
     with pytest.warns(DeprecationWarning):
         old = sediment_transport_Kobayashi(0, data, dict(grid), KOBAYASHI)
     for key in new:
@@ -177,3 +179,36 @@ def test_delft_plot_grids(tmp_path):
     with matplotlib.rc_context({"text.usetex": False}):
         ax = delft3d.plot_grids({"g": tmp_path / "g.grd"}, fname=str(tmp_path / "grids.png"))
     assert (tmp_path / "grids.png").exists() and ax is not None
+
+
+def test_cshore_infile_follows_input_order(tmp_path):
+    props = cshore.default_config()
+    props.update(header=["a", "b"], dx=1.0, d50=0.3, wf=0.04, Tp=[8.0, 9.0], Hrms=[1.0, 1.5], angle=10.0,
+                 nwave=2, nsurg=2, timebc_wave=3600.0, x=np.arange(3.0), zb=np.array([-2.0, -1.0, 0.5]), fw=0.015)
+    cshore.write_input(props, tmp_path)
+    lines = (tmp_path / "infile").read_text().splitlines()
+    assert lines[:3] == ["2", "a", "b"]
+    labels = [ln.split("->")[1] for ln in lines if "->" in ln]
+    assert labels[:15] == ["ILINE", "IPROFL", "ISEDAV", "IPERM", "IOVER", "IWTRAN", "IPOND", "INFILT", "IWCINT",
+                           "IROLL", "IWIND", "ITIDE", "IVEG", "DX", "GAMMA"]
+    assert all(" ->" in ln for ln in lines if "->" in ln)          # Fortran list input needs the separation
+    assert [float(v) for v in lines[lines.index(next(ln for ln in lines if "NSURGE" in ln)) + 2].split()] == \
+        [7200.0, 9.0, 1.5, 0.0, 0.0, 10.0]
+
+    props.update(iover=0)
+    cshore.write_input(props, tmp_path)
+    labels = [ln.split("->")[1] for ln in (tmp_path / "infile").read_text().splitlines() if "->" in ln]
+    assert "IWTRAN" not in labels and "RWH" not in labels and "EFFB EFFF SLP" in labels
+
+
+def test_cshore_read_output_blocks(tmp_path):
+    (tmp_path / "OBSUSL").write_text(
+        "       1       2     3600.0\n   0.000   0.900   0.800   0.001\n   1.000   0.950   0.850   0.002\n"
+        "       1       2     7200.0\n   0.000   0.910   0.810   0.003\n   1.000   0.960   0.860   0.004\n")
+    (tmp_path / "OLONGS").write_text("       1       2     3600.0\n       1       2     7200.0\n")
+    df = cshore.read_output("bsusl", tmp_path)
+    assert list(df.columns) == ["Pb", "Ps", "Vs"] and df.index.names == ["time", "x"] and len(df) == 4
+    assert cshore.read_output("bsusl", tmp_path, time="last")["Vs"].tolist() == [0.003, 0.004]
+    assert cshore.read_output("bsusl", tmp_path, time=3600.0)["Pb"].tolist() == [0.9, 0.95]
+    with pytest.raises(ValueError, match="oblique"):
+        cshore.read_output("longs", tmp_path)

@@ -35,6 +35,7 @@ Coastal Processes
    :toctree: _autosummary
 
    slopes
+   bed_slope
    kobayashi_transport
    sediment_transport_CERC
    equilibrium_plan_shape
