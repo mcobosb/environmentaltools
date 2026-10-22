@@ -76,7 +76,6 @@ from .spatial import (
     include_Andalusian_coast,
     include_coastal_Andalusian_cities,
     include_seas,
-    plot_delft_grids,
 )
 
 
@@ -170,7 +169,6 @@ __all__ = [
     "include_Andalusian_coast",
     "include_coastal_Andalusian_cities",
     "include_seas",
-    "plot_delft_grids",
     # Regimes
     "pot_lmom",
     "annual_maxima_analysis",
@@ -196,3 +194,12 @@ __all__ = [
     "handle_axis",
     "labels",
 ]
+
+
+from environmentaltools._deprecation import moved
+
+# Moved to environmentaltools.models.delft3d (deprecated aliases)
+__getattr__ = moved(__name__, {
+    "plot_delft_grids": ("environmentaltools.models.delft3d", "plot_grids"),
+    "plot_delft_wave_field": ("environmentaltools.models.delft3d", "plot_wave_field"),
+})

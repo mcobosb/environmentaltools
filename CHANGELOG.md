@@ -5,6 +5,17 @@ All relevant project updates are documented here:
 ## [Unreleased]
 ### Added
 - new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
+- `models.delft3d` (raw outputs, NEFIS `.dat` extraction, grid and wave field plots), `models.cshore`, `models.coastalme` and `models.swan_copla` (SWAN → COPLA → Kobayashi workflow) (potinar)
+- `processes.kobayashi_transport`: Kobayashi et al. (2008) transport as a pure function of the 2-D fields (potinar)
+
+### Changed
+- model readers/writers/runners moved from `common`, `processes` and `graphics` to `models`; the old names are deprecated aliases (removal in 4.0) (potinar)
+- `processes` split by topic: `waves`, `coastal`, `hydrology`, `properties` (`processes.compute` kept for compatibility) (potinar)
+- Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)
+
+### Fixed
+- `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
+- `read_copla` discarded the `grid` passed to it (potinar)
 
 ## [3.2.7] - 2026-04-29
 ### Added

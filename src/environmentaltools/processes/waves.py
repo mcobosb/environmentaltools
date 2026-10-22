@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+import scipy.stats as st
 from scipy.optimize import fsolve
 
 
@@ -305,130 +307,6 @@ def closure_depth(data, Hallermeier=True):
     return dc
 
 
-
-
-def fall_velocity(d, T, S):
-    """Estimate sediment particle fall velocity using Soulsby's (1997) formula.
-
-    Calculates settling velocity accounting for water temperature and salinity effects
-    on density and viscosity.
-
-    Parameters
-    ----------
-    d : float or np.ndarray
-        Grain diameter (mm)
-    T : float
-        Water temperature (°C)
-    S : float
-        Salinity (ppt or ‰)
-
-    Returns
-    -------
-    w : float or np.ndarray
-        Fall velocity (m/s)
-
-    Notes
-    -----
-    Uses Soulsby (1997) optimization:
-        w = ν/d * [sqrt(10.36² + 1.049 * D³) - 10.36]
-
-    where:
-    - ν is kinematic viscosity (m²/s)
-    - D = [(g(s-1)/ν²)]^(1/3) * d is dimensionless grain size
-    - s = ρₛ/ρ is specific gravity
-
-    Valid for natural sediments across wide size range (0.1 μm to 10 mm).
-    Accounts for temperature/salinity effects through density and viscosity.
-
-    References
-    ----------
-    Soulsby, R. (1997). Dynamics of marine sands. Thomas Telford.
-    """
-
-    g = 9.81
-    rho = density(T, S)
-    kvis = kinematic_viscosity(T)
-    rhos = 2650
-    d = d / 1000
-    s = rhos / rho
-    D = (g * (s - 1) / kvis**2) ** (1 / 3) * d
-    w = kvis / d * (np.sqrt(10.36**2 + 1.049 * D**3) - 10.36)
-    return w
-
-
-def density(T, S):
-    """Estimate water density from temperature and salinity.
-
-    Uses empirical approximation for seawater density as function of temperature
-    and salinity.
-
-    Parameters
-    ----------
-    T : float
-        Water temperature (°C)
-    S : float
-        Salinity (‰ or ppt)
-
-    Returns
-    -------
-    rho : float
-        Water density (kg/m³)
-
-    Notes
-    -----
-    Approximation from Van Rijn (1993):
-        ρ = 1000 + 1.455 * CL - 6.5×10⁻³ * (T - 4 + 0.4*CL)²
-
-    where CL = (S - 0.03) / 1.805 is chlorinity.
-
-    Valid for typical oceanographic conditions (S = 0-40‰, T = 0-30°C).
-
-    References
-    ----------
-    Van Rijn, L. C. (1993). Principles of sediment transport in rivers, estuaries
-    and coastal seas. Aqua Publications.
-    """
-
-    CL = (S - 0.03) / 1.805  # VanRijn
-
-    rho = 1000 + 1.455 * CL - 6.5e-3 * (T - 4 + 0.4 * CL) ** 2
-    return rho
-
-
-def kinematic_viscosity(T):
-    """Estimate kinematic viscosity of water from temperature.
-
-    Calculates temperature-dependent kinematic viscosity using empirical formula.
-
-    Parameters
-    ----------
-    T : float
-        Water temperature (°C)
-
-    Returns
-    -------
-    kvis : float
-        Kinematic viscosity (m²/s)
-
-    Notes
-    -----
-    Approximation from Van Rijn (1989).
-    Kinematic viscosity decreases with increasing temperature.
-    
-    Typical values:
-    - At 0°C: ν ≈ 1.79 × 10⁻⁶ m²/s
-    - At 10°C: ν ≈ 1.31 × 10⁻⁶ m²/s
-    - At 20°C: ν ≈ 1.00 × 10⁻⁶ m²/s
-
-    References
-    ----------
-    Van Rijn, L. C. (1989). Handbook of Sediment Transport by Currents and Waves.
-    """
-
-    kvis = 1e-6 * (1.14 - 0.031 * (T - 15) + 6.8e-4 * (T - 15) ** 2)
-    return kvis
-
-
 def zero_cross(ts, dt):
     """Analyze time series using zero-upcrossing method.
 
@@ -513,3 +391,66 @@ def zero_cross(ts, dt):
             i1 = i1[1:]
 
     return H, T, Ac, As, Tc, Ts, ic, it, i1
+
+
+def storm_surge_from_waves(data: pd.DataFrame, location: str, var_name: str = "Hm0"):
+    """Compute storm surge elevation from significant wave height.
+
+    Estimates storm surge (sea level anomaly) based on wave conditions using
+    empirical relationships from the Spanish Flooding Atlas (Atlas de Inundación Español).
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame with wave parameters
+    location : str
+        Location identifier for parameter selection. Options: 'Huelva', 'Malaga'
+    var_name : str, optional
+        Column name for significant wave height (m). Default: 'Hm0'
+
+    Returns
+    -------
+    pd.DataFrame
+        Input DataFrame with added 'mm' column containing storm surge elevation (m)
+
+    Notes
+    -----
+    Uses location-specific polynomial relationships between wave height and surge:
+    
+    - Location parameter (mu): mean surge level
+    - Scale parameter (sigma): surge variability
+    
+    Storm surge is computed stochastically using normal distribution with
+    wave-height-dependent parameters.
+
+    References
+    ----------
+    Atlas de Inundación de la Costa Española
+    """
+
+    parametros = {
+        "Malaga": {
+            "loc": [-0.0334122, 0.08969, -0.0148889],
+            "esc": [0.0875315, -0.0238893, 0.0473336, -0.0122261],
+        },
+        "Huelva": {
+            "loc": [-0.0218071, -0.00208886, 0.0286215],
+            "esc": [0.0558449, 0.0446334, -0.0106856, -0.000660628],
+        },
+        "info": "Parametros del Atlas de Inundacion",
+    }
+
+    mu = np.polyval(parametros[location]["loc"][::-1], data[var_name])
+    esc = np.polyval(parametros[location]["esc"][::-1], data[var_name])
+
+    # Replace negative variance
+    esc[esc < 0] = np.random.rand(len(esc[esc < 0])) * 1e-3
+
+    p_Hs = np.random.rand(len(data))
+    eta = st.norm.ppf(p_Hs, mu, esc)
+    data["mm"] = data[var_name] * 0 + eta
+    return data
+
+
+# Moved to environmentaltools.processes.properties; kept here for backwards compatibility.
+from environmentaltools.processes.properties import density, fall_velocity, kinematic_viscosity  # noqa: E402,F401

@@ -7,10 +7,13 @@ across the environmentaltools package.
 Submodules:
     read: Functions for reading various file formats (CSV, Excel, NetCDF, etc.)
     save: Functions for saving data to various formats
-    load: Functions for loading model outputs and configurations
-    write: Functions for writing model input files (SWAN, CSHORE, COPLA)
     utils: General utility functions for data analysis and transformations
+
+The readers and writers of model files (SWAN, COPLA, CSHORE, Delft3D) moved to
+:mod:`environmentaltools.models`; the old names still work as deprecated aliases.
 """
+
+from environmentaltools._deprecation import moved
 
 # Read functions
 from .read import (
@@ -45,25 +48,6 @@ from .save import (
     to_txt,
     to_shp,
     to_netcdf,
-)
-
-# Load functions
-from .load import (
-    create_mesh_dictionary,
-    cshore_config,
-    read_cshore,
-    read_copla,
-    read_swan,
-    delft_raw_files_point,
-    delft_raw_files,
-)
-
-# Write functions
-from .write import (
-    write_cshore_input,
-    write_swan_input,
-    write_copla_input,
-    create_project_directory,
 )
 
 
@@ -136,19 +120,6 @@ __all__ = [
     "to_txt",
     "to_shp",
     "to_netcdf",
-    # Load functions
-    "create_mesh_dictionary",
-    "cshore_config",
-    "read_cshore",
-    "read_copla",
-    "read_swan",
-    "delft_raw_files_point",
-    "delft_raw_files",
-    # Write functions
-    "write_cshore_input",
-    "write_swan_input",
-    "write_copla_input",
-    "create_project_directory",
     # Utility functions
     "max_moving_window",
     "gaps",
@@ -186,3 +157,9 @@ __all__ = [
     "create_lat_lon_matrix",
     "coords_name",
 ]
+
+# Moved to environmentaltools.models (deprecated aliases)
+from .load import MOVED as _LOAD  # noqa: E402
+from .write import MOVED as _WRITE  # noqa: E402
+
+__getattr__ = moved(__name__, {**_LOAD, **_WRITE})
