@@ -131,10 +131,14 @@ def plot_case_maps(cfg, case, folder=None, quantity=None, file_name=None, dpi=No
     pts = None
     if (cfg.cases_dir / "_common" / "points.csv").exists():
         pts = pd.read_csv(cfg.cases_dir / "_common" / "points.csv")
-    meta_f = Path(folder or cfg.results_dir / case) / "case.json"
-    v = json.loads(meta_f.read_text())["values"] if meta_f.exists() else {}
+    metas = [Path(folder) / "case.json"] if folder else []
+    metas += [cfg.results_dir / case / "case.json", cfg.cases_dir / case / "case.json"]
+    meta_f = next((f for f in metas if f.exists()), None)
+    v = json.loads(meta_f.read_text())["values"] if meta_f else {}
+    vmax = max(np.nanmax(read_map(cfg, case, g, folder)[quantity].to_numpy()) for g in grids)
+    levels = np.linspace(0, vmax if vmax > 0 else 1, 21)        # same colour scale in every panel
     for ax, g in zip(axs[0], grids):
-        plot_map(cfg, case, g, quantity, ax=ax, folder=folder, n_arrows=fs.get("n_arrows", 20))
+        plot_map(cfg, case, g, quantity, ax=ax, folder=folder, n_arrows=fs.get("n_arrows", 20), levels=levels)
         if pts is not None:
             xl, yl = ax.get_xlim(), ax.get_ylim()
             p = pts[pts.x.between(*xl) & pts.y.between(*yl)]
