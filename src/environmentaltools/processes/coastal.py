@@ -386,40 +386,32 @@ def coastline_evolution(coastlines, points):
     ----------
     coastlines : dict
         Dictionary with time steps as keys and DataFrames with coastline coordinates
-        as values. Each DataFrame should contain 'x' and 'y' columns.
+        as values. Each DataFrame should contain 'x' and 'y' columns. The first
+        key is the reference coastline.
     points : list
         List of 2D points (x, y tuples or arrays) where coastline evolution is tracked
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with coastline evolution distances at each monitoring point.
-        Positive values indicate advance, negative values indicate retreat.
+        DataFrame with coastline evolution distances at each monitoring point
+        (rows: time steps after the reference; columns: points). The distance is
+        negative when the nearest coastline point moved towards larger y.
     """
 
-    no_points = len(points)
-    no_steps = len(coastlines)
-    evolution = pd.DataFrame(-1, index=range(1, no_steps), columns=range(no_points))
+    times = list(coastlines.keys())
+    reference = coastlines[times[0]]
+    evolution = pd.DataFrame(np.nan, index=times[1:], columns=range(len(points)))
 
     for ind_, point in enumerate(points):
-        index_0 = utils.nearest(coastlines[0], point)
-        for time_ in coastlines.keys():
-            index_ = utils.nearest(
-                coastlines[time_],
-                [coastlines[0].loc[index_0, "x"], coastlines[0].loc[index_0, "y"]],
-            )
-            if (
-                coastlines[time_].loc[index_, "y"] - coastlines[0].loc[index_0, "y"]
-            ) > 0:
-                constant = -1
-            else:
-                constant = 1
-            evolution.loc[time_, ind_] = constant * np.sqrt(
-                (coastlines[time_].loc[index_, "x"] - coastlines[0].loc[index_0, "x"])
-                ** 2
-                + (coastlines[time_].loc[index_, "y"] - coastlines[0].loc[index_0, "y"])
-                ** 2
-            )
+        index_0 = utils.find_nearest_point(reference, point)
+        x0, y0 = reference["x"].iloc[index_0], reference["y"].iloc[index_0]
+        for time_ in times[1:]:
+            coastline = coastlines[time_]
+            index_ = utils.find_nearest_point(coastline, [x0, y0])
+            x, y = coastline["x"].iloc[index_], coastline["y"].iloc[index_]
+            constant = -1 if (y - y0) > 0 else 1
+            evolution.loc[time_, ind_] = constant * np.sqrt((x - x0) ** 2 + (y - y0) ** 2)
 
     return evolution
 

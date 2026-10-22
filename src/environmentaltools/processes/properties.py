@@ -176,10 +176,11 @@ def settling_velocity(ds, info, type_="Rubey"):
         M = 53.5 * np.exp(-0.65 * info["Sp"])
         N = 5.65 * np.exp(-2.5 * info["Sp"])
         n = 0.7 + 0.9 * info["Sp"]
+        d_ast = ds * ((info["sg"] - 1) * g / info["nu"] ** 2) ** (1 / 3)  # dimensionless diameter
         w_s = (
             M
             * info["nu"]
-            / (N * d)
+            / (N * ds)
             * (np.sqrt(0.25 + (4 * N / (3 * M**2) * d_ast**3) ** (1 / n)) - 0.5) ** n
         )
 

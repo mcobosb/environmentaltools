@@ -491,6 +491,38 @@ def cumulative_by_events(df, eps: float = 1e-6):
     return df_cumulative
 
 
+def _section_geometry(y, section, params):
+    """Wetted area, wetted perimeter and top width of an open channel section.
+
+    Args:
+        y (float | np.ndarray): Water depth (m).
+        section (str): 'rectangular', 'trapezoidal', 'triangular', 'circular' or 'parabolic'.
+        params (dict): Bottom width ``b`` (or ``w``), side slope ``z`` (horizontal:vertical),
+            diameter ``D`` or top width ``T``, depending on the section.
+
+    Returns:
+        tuple: ``(area, perimeter, top_width)``.
+    """
+    y = np.asarray(y, dtype=float)
+    b = params["b"] if "b" in params else params.get("w")
+    if section == "rectangular":
+        return b * y, b + 2 * y, b + 0 * y
+    if section == "trapezoidal":
+        z = params["z"]
+        return (b + z * y) * y, b + 2 * y * np.sqrt(1 + z**2), b + 2 * z * y
+    if section == "triangular":
+        z = params["z"]
+        return z * y**2, 2 * y * np.sqrt(1 + z**2), 2 * z * y
+    if section == "circular":
+        D = params["D"]
+        theta = 2 * np.arccos(1 - 2 * np.clip(y, 0, D) / D)  # central angle of the wetted sector
+        return (theta - np.sin(theta)) * D**2 / 8, theta * D / 2, D * np.sin(theta / 2)
+    if section == "parabolic":
+        T = params["T"]
+        return 2 / 3 * T * y, T + 8 * y**2 / (3 * T), T + 0 * y
+    raise ValueError("Type of section not yet implemented")
+
+
 def hydraulic_radius(channel_info, type_="rectangular"):
     """Calculate hydraulic properties of open channel cross-sections.
 
@@ -501,11 +533,18 @@ def hydraulic_radius(channel_info, type_="rectangular"):
     ----------
     channel_info : dict
         Dictionary with channel geometry parameters:
-        
+
+        - y : float or array-like
+            Water depth (m)
         - b : float
-            Channel bottom width (m)
-        - Additional parameters depending on channel type
-            
+            Channel bottom width (m; rectangular and trapezoidal)
+        - z : float
+            Side slope, horizontal:vertical (trapezoidal and triangular)
+        - D : float
+            Diameter (m; circular)
+        - T : float
+            Top width (m; parabolic)
+
     type_ : str, optional
         Channel cross-section type. Options: 'rectangular', 'trapezoidal',
         'triangular', 'circular', 'parabolic'. Default: 'rectangular'
@@ -513,7 +552,8 @@ def hydraulic_radius(channel_info, type_="rectangular"):
     Returns
     -------
     pd.DataFrame
-        DataFrame with computed hydraulic properties:
+        One row per water depth with columns:
+        - y : Water depth (m)
         - wet_area : Wetted cross-sectional area (m²)
         - wet_perimeter : Wetted perimeter (m)
         - rh : Hydraulic radius (m)
@@ -530,43 +570,15 @@ def hydraulic_radius(channel_info, type_="rectangular"):
     where A is the wetted area and P is the wetted perimeter.
     This parameter is fundamental for Manning's equation and other
     open channel flow formulas.
-    
-    Warning
-    -------
-    This function has a bug: variable 'y' (water depth) is not defined as parameter
     """
+    y = np.atleast_1d(np.asarray(channel_info["y"], dtype=float))
+    area, perimeter, top_width = _section_geometry(y, type_, channel_info)
 
-    df = df.copy()
-
-    # TODO: Check that b and y can be inside the channel_info dictionary
-    if type_ == "rectangular":
-        df["wet_area"] = channel_info["b"] * channel_info["y"]
-        df["wet_perimeter"] = channel_info["b"] + 2 * channel_info["y"]
-        df["rh"] = channel_info["b"] * channel_info["y"] / (channel_info["b"] + 2 * channel_info["y"])
-        df["water_mirror"] = channel_info["b"]
-    elif type_ == "trapezoidal":
-        df["wet_area"] = (channel_info["b"] + channel_info["y"]) * channel_info["y"]
-        df["wet_perimeter"] = channel_info["b"] + 2 * channel_info["y"]
-        df["rh"] = channel_info["b"] * channel_info["y"] / (channel_info["b"] + 2 * channel_info["y"])
-        df["water_mirror"] = channel_info["b"]
-    elif type_ == "triangular":
-        df["wet_area"] = channel_info["b"] * channel_info["y"]
-        df["wet_perimeter"] = channel_info["b"] + 2 * channel_info["y"]
-        df["rh"] = channel_info["b"] * channel_info["y"] / (channel_info["b"] + 2 * channel_info["y"])
-        df["water_mirror"] = channel_info["b"]
-    elif type_ == "circular":
-        df["wet_area"] = channel_info["b"] * channel_info["y"]
-        df["wet_perimeter"] = channel_info["b"] + 2 * channel_info["y"]
-        df["rh"] = channel_info["b"] * channel_info["y"] / (channel_info["b"] + 2 * channel_info["y"])
-        df["water_mirror"] = channel_info["b"]
-    elif type_ == "parabolic":
-        df["wet_area"] = channel_info["b"] * channel_info["y"]
-        df["wet_perimeter"] = channel_info["b"] + 2 * channel_info["y"]
-        df["rh"] = channel_info["b"] * channel_info["y"] / (channel_info["b"] + 2 * channel_info["y"])
-        df["water_mirror"] = channel_info["b"]
-    else:
-        raise ValueError("Type of section not yet implemented")
-
+    df = pd.DataFrame({"y": y})
+    df["wet_area"] = area
+    df["wet_perimeter"] = perimeter
+    df["rh"] = area / perimeter
+    df["water_mirror"] = top_width
     return df
 
 
@@ -603,9 +615,9 @@ def water_elevation(type_="rectangular"):
     Notes
     -----
     Manning's equation: Q = (1/n) * A * R^(2/3) * S^(1/2)
-    
+
     where:
-    
+
     - Q : Discharge (m³/s)
     - n : Manning's roughness coefficient
     - A : Wetted area (m²)
@@ -616,88 +628,29 @@ def water_elevation(type_="rectangular"):
     to find the water depth that produces the given discharge.
 
     channel_params dictionary should contain:
-    
+
     - n : Manning's roughness coefficient
-    - w : Channel width or bottom width (m)
+    - w : Channel bottom width (m; rectangular and trapezoidal)
     - S : Channel bed slope (m/m)
     - z : Side slope (for trapezoidal/triangular, horizontal:vertical)
     - D : Diameter (for circular)
     - T : Top width (for parabolic)
-    - theta : Central angle (for circular)
     """
-    if type_ == "rectangular":
-
-        def rectangular(h, Q, channel_params):
-            return np.abs(
-                Q
-                - 1
-                / channel_params["n"]
-                * (channel_params["w"] * h)
-                * (channel_params["w"] * h / (channel_params["w"] + 2 * h)) ** (2 / 3)
-                * channel_params["S"] ** 0.5
-            )
-
-        fun = rectangular
-    elif type_ == "trapezoidal":
-
-        def trapezoidal(h, Q, channel_params):
-            return np.abs(
-                Q
-                - 1
-                / channel_params["n"]
-                * (channel_params["w"] * channel_params["z"] * h)
-                * h
-                / (channel_params["w"] + 2 * h * np.sqrt(1 + channel_params["z"] ** 2)) ** (2 / 3)
-                * channel_params["S"] ** 0.5
-            )
-
-        fun = trapezoidal
-    elif type_ == "triangular":
-
-        def triangular(h, Q, channel_params):
-            return np.abs(
-                Q
-                - 1
-                / channel_params["n"]
-                * (channel_params["z"] * h)
-                / (2 * np.sqrt(1 + channel_params["z"] ** 2)) ** (2 / 3)
-                * channel_params["S"] ** 0.5
-            )
-
-        fun = triangular
-    elif type_ == "circular":
-
-        def circular(h, Q, channel_params):
-            return np.abs(
-                Q
-                - 1
-                / channel_params["n"]
-                * (
-                    (1 - np.sin(np.rad2deg(channel_params["theta"])) / np.rad2deg(channel_params["theta"]))
-                    * channel_params["D"]
-                    / 4
-                )
-                ** (2 / 3)
-                * channel_params["S"] ** 0.5
-            )
-
-        fun = circular
-    elif type_ == "parabolic":
-
-        def parabolic(h, Q, channel_params):
-            return np.abs(
-                Q
-                - 1
-                / channel_params["n"]
-                * ((2 * channel_params["T"] ** 2 * h) / (3 * channel_params["T"] ** 2 + 8 * h**2))
-                ** (2 / 3)
-                * channel_params["S"] ** 0.5
-            )
-
-        fun = parabolic
-    else:
+    if type_ not in ("rectangular", "trapezoidal", "triangular", "circular", "parabolic"):
         raise ValueError("Type of section not yet implemented")
 
+    def fun(h, Q, channel_params):
+        area, perimeter, _ = _section_geometry(h, type_, channel_params)
+        return np.abs(
+            Q
+            - 1
+            / channel_params["n"]
+            * area
+            * (area / perimeter) ** (2 / 3)
+            * channel_params["S"] ** 0.5
+        )
+
+    fun.__name__ = type_
     return fun
 
 
@@ -733,7 +686,11 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
         - ds_substrate : array-like
             Grain size distribution (for Wilcock-Crowe, Yang, Brownlie)
         - frac_substrate : array-like
-            Fraction of each grain size class (for Wilcock-Crowe)
+            Fraction of each grain size class (for Wilcock-Crowe and Yang)
+        - Fs : float
+            Fraction of sand in the surface layer (Wilcock-Crowe, default 0.2)
+        - sigma_g : float
+            Geometric standard deviation of the bed material (Brownlie, default 1)
         - n : float
             Manning's roughness coefficient (for some methods)
             
@@ -744,7 +701,7 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
         - 'wilcock-crowe' : Wilcock & Crowe (2003) for mixed-size sediments
         - 'bagnold' : Bagnold (1966) stream power approach
         - 'yang' : Yang (1973) for sand-bed rivers
-        - 'brownlie' : Brownlie (1981) comprehensive formula
+        - 'brownlie' : Brownlie (1981) comprehensive formula (also 'browlie')
         Default: 'meyer-peter-muller'
 
     Returns
@@ -803,10 +760,10 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
             "Based on Meyer-Peter-Müller (1948) for gravel rivers with it uses d50"
             " of the superficial bed layers"
         )
-        df["qb"] = 0
+        df["qb"] = 0.0
         motion = tau_shi >= tau_c_shi
 
-        df["qb"][motion] = (
+        df.loc[motion, "qb"] = (
             8
             * (tau_shi[motion] - tau_c_shi) ** (1.5)
             * (info["d50"] * (g * (info["sg"] - 1) * info["d50"]) ** 0.5)
@@ -817,12 +774,12 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
 
         w_s = settling_velocity(info["d50"], info)
         low_motion = tau_shi < 0.18
-        mid_motion = (tau_shi > 0.18) & (tau_shi < 0.52)
-        high_motion = tau_shi > 0.52
-        df["qb"] = 0
-        df["qb"][low_motion] = 2.15 * np.exp(-0.391 / tau_shi[low_motion])
-        df["qb"][mid_motion] = 40 * tau_shi[mid_motion] ** 3
-        df["qb"][high_motion] = 15 * tau_shi[high_motion] ** (1.5)
+        mid_motion = (tau_shi >= 0.18) & (tau_shi < 0.52)
+        high_motion = tau_shi >= 0.52
+        df["qb"] = 0.0
+        df.loc[low_motion, "qb"] = 2.15 * np.exp(-0.391 / tau_shi[low_motion])
+        df.loc[mid_motion, "qb"] = 40 * tau_shi[mid_motion] ** 3
+        df.loc[high_motion, "qb"] = 15 * tau_shi[high_motion] ** (1.5)
 
         df["qb"] = df["qb"] * w_s * info["d50"]
         df["Qb"] = df["qb"] * 3600 * info["w"]  # m3
@@ -830,19 +787,20 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
     elif type_ == "wilcock-crowe":
 
         dm = np.sum(info["ds_substrate"] * info["frac_substrate"])
-        if not "Fs" in info.keys():
-            Fs = 0.2  # Porcentaje de arena en la capa de superficie y substrato
+        Fs = info.get("Fs")  # Fraction of sand in the surface layer
+        if Fs is None:
+            Fs = 0.2
             logger.info("Percentage of sands if not given. Using Fs equals to 0.2.")
 
         tau_rm_shi = 0.021 + 0.015 * np.exp(-20 * Fs)
-        tau_rm = tau_rm_shi / (g * info["d50"] * info["rho_w"] * (info["sg"] - 1))
+        tau_rm = tau_rm_shi * g * dm * info["rho_w"] * (info["sg"] - 1)  # reference shear stress (Pa)
         weight = np.zeros(len(tau))
 
-        df["qb"] = 0
+        df["qb"] = 0.0
 
-        for i in range(0, len(info["ds_substrate"]) - 1):
-            b = 0.67 / (1 + np.exp(1.5 - info["ds_substrate"][i] / dm))  # bug aquí
-            tau_ri = tau_rm * (info["ds_substrate"][i] / info["d50"]) ** b
+        for i in range(len(info["ds_substrate"])):
+            b = 0.67 / (1 + np.exp(1.5 - info["ds_substrate"][i] / dm))
+            tau_ri = tau_rm * (info["ds_substrate"][i] / dm) ** b
             Fi = tau / tau_ri
             mask = Fi < 1.35
             weight[mask] = 0.002 * Fi[mask] ** (7.5)
@@ -852,9 +810,9 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
                 g * df["h"] * info["S"]
             ) ** (3 / 2) * info["rho_s"] / (
                 (info["sg"] - 1) * g
-            )  # o sobra un rho_s
+            )  # kg/s
 
-        df["Qb"] = df["qb"] * 3600 / info["rho_s"]  # o falta un rho_s
+        df["Qb"] = df["qb"] * 3600 / info["rho_s"]
 
     elif type_ == "bagnold":
         if not "d50" in info.keys():
@@ -882,63 +840,48 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
         if not "ds_substrate" in info.keys():
             raise ValueError("ds is required for Yan method.")
 
-        w_s = settling_velocity(info["ds_substrate"], info)
+        ds = np.atleast_1d(info["ds_substrate"])
+        frac = np.atleast_1d(info.get("frac_substrate", np.full(len(ds), 1 / len(ds))))
+        w_s = np.atleast_1d(settling_velocity(ds, info))
 
-        U = 1 / info["n"] * df["h"] ** (2 / 3) * info["S"] ** 0.5
-        Q = U * info["w"] * df["h"]
-        uc = (g * df["h"] * info["S"]) ** 0.5
+        h = df["h"].to_numpy(dtype=float)
+        U = 1 / info["n"] * h ** (2 / 3) * info["S"] ** 0.5
+        Q = U * info["w"] * h
+        uc = (g * h * info["S"]) ** 0.5
 
-        landa = np.zeros((len(info["ds_substrate"]), len(h)))
-        Cm2 = np.zeros((len(info["ds_substrate"]), len(h)))  # concentración másica
-        Qv2 = np.zeros((len(info["ds_substrate"]), len(h)))  # caudal sólido
-
-        for i in range(0, len(info["ds_substrate"]) - 1):
-            fac1 = np.zeros(len(U))
-            mask = (info["ds_substrate"][i] > 0) & (
-                uc * info["ds_substrate"][i] / info["nu"]
-                > 1.2 & uc * info["ds_substrate"][i] / info["nu"]
-                < 70
+        # Yang (1973) for sand and Yang (1984) for gravel; common logarithms,
+        # concentration in ppm by weight
+        qv = np.zeros(len(h))  # m3/s
+        for d, ws, fr in zip(ds, w_s, frac):
+            if d <= 0:
+                continue
+            re = uc * d / info["nu"]
+            fac1 = np.zeros(len(h))  # critical velocity / fall velocity
+            mask = (re > 1.2) & (re < 70)
+            fac1[mask] = 2.5 / (np.log10(re[mask]) - 0.06) + 0.66
+            fac1[re >= 70] = 2.05
+            if d < 0.002:
+                c = (5.435, 0.286, 0.457, 1.799, 0.409, 0.314)
+            else:
+                c = (6.681, 0.633, 4.816, 2.784, 0.305, 0.282)
+            excess = U * info["S"] / ws - fac1 * info["S"]
+            moving = excess > 0
+            log_ct = (
+                c[0]
+                - c[1] * np.log10(ws * d / info["nu"])
+                - c[2] * np.log10(uc[moving] / ws)
+                + (
+                    c[3]
+                    - c[4] * np.log10(ws * d / info["nu"])
+                    - c[5] * np.log10(uc[moving] / ws)
+                )
+                * np.log10(excess[moving])
             )
-            fac1[mask] = (
-                2.5 / (np.log(uc[mask] * info["ds_substrate"][i] / info["nu"]) - 0.06)
-                + 0.66
-            )
-            mask = (info["ds_substrate"][i] > 0) & (
-                uc * info["ds_substrate"][i] / info["nu"] >= 70
-            )
-            fac1[mask] = 2.05
+            qv[moving] += fr * 10**log_ct * 0.001 * Q[moving] / info["rho_s"]
 
-            mask = (info["ds_substrate"][i] > 0) & (info["ds_substrate"][i] < 0.002)
-            landa[i][mask] = (
-                5.435
-                - 0.286 * np.log(w_s[i] * info["ds"][i] / info["nu"])
-                - 0.457 * np.log(uc[mask] / w_s[i])
-            )
-            +(
-                1.799
-                - 0.409 * np.log(w_s[i] * info["ds_substrate"][i] / info["nu"])
-                - 0.314 * np.log(uc[mask] / w_s[i])
-            ) * np.log(U[mask] * info["S"] / w_s[i] - fac1[mask] * info["S"])
+        df["Qb"] = qv * 3600
 
-            mask = info["ds_substrate"][i] > 0.002
-            landa[i][mask] = (
-                6.681
-                - 0.633 * np.log(w_s[i] * info["ds_substrate"][i] / info["nu"])
-                - 4.816 * np.log(uc[mask] / w_s[i])
-            )
-            +(
-                2.784
-                - 0.305 * np.log(w_s[i] * info["ds_substrate"][i] / info["nu"])
-                - 0.282 * np.log(uc[mask] / w_s[i])
-            ) * np.log(U[mask] * info["S"] / w_s[i] - fac1[mask] * info["S"])
-
-            mask = info["ds_substrate"][i] == 0
-            landa[i][mask] = 0
-
-            Cm2[i] = 10 ** landa[i]
-            Qv2[i] = Cm2[i] * 0.001 * Q / info["rho_s"]
-
-    elif type_ == "browlie":
+    elif type_ in ("brownlie", "browlie"):
         U = 1 / info["n"] * df["h"] ** (2 / 3) * info["S"] ** 0.5
         Q = U * info["w"] * df["h"]
 
@@ -961,6 +904,8 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
                 tau_adim_c[mask] = 0.0115 * d_adim[mask] ** (0.30)
                 mask = d_adim > 150
                 tau_adim_c[mask] = 0.052
+            else:
+                raise ValueError(f"tau_adim '{info['tau_adim']}' not implemented.")
         else:
             logger.info("Browlie's tau adimensional parameter.")
             dens_apa = 1600
@@ -970,10 +915,12 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
                 * info["d50"] ** (3 / 2)
                 / info["nu"]
             ) ** (-0.6)
-            tau_adim_c = 0.22 * Y_bw + 0.06 * 10 ** (7.7 * Y_bw)
+            tau_adim_c = 0.22 * Y_bw + 0.06 * 10 ** (-7.7 * Y_bw)
 
-        df["Cppm"] = 0
-        df["Qb"] = 0
+        sigma_g = info.get("sigma_g")  # geometric standard deviation of the bed material
+        if sigma_g is None:
+            sigma_g = 1.0
+            logger.info("Geometric standard deviation sigma_g not given. Using 1 (uniform sediment).")
         cb = 1.268
 
         Uc = (
@@ -981,12 +928,12 @@ def river_sediment_transport(df, info, type_="meyer-peter-muller"):
             * 4.596
             * tau_adim_c**0.529
             * info["S"] ** (-0.1405)
-            * np.std(info["ds_substrate"]) ** (-0.1606)
+            * sigma_g ** (-0.1606)
         )
         df["Cppm"] = (
             7115
             * cb
-            * ((U - Uc) / ((info["sg"] - 1) * g * info["d50"]) ** 0.5) ** 1.978
+            * (np.clip(U - Uc, 0, None) / ((info["sg"] - 1) * g * info["d50"]) ** 0.5) ** 1.978
             * info["S"] ** 0.6601
             * (df["h"] / info["d50"]) ** (-0.3301)
         )

@@ -16,6 +16,10 @@ All relevant project updates are documented here:
 ### Fixed
 - `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
 - `read_copla` discarded the `grid` passed to it (potinar)
+- `hydraulic_radius` failed (undefined `df`); trapezoidal, triangular, circular and parabolic sections used the rectangular formulas. `water_elevation` uses the same geometries (potinar)
+- `river_sediment_transport`: Yang failed (undefined `h`, wrong mask, second term dropped, natural instead of common logarithms, no result); Brownlie gave NaN (sign of the exponent of the critical Shields parameter, `np.std` of the diameters instead of `sigma_g`, no zero below the critical velocity) and accepts `"brownlie"`; Wilcock-Crowe ignored a given `Fs`, divided instead of multiplied to get the reference shear stress and skipped the last size class; `.loc` instead of chained assignment (silently ignored with pandas copy-on-write) (potinar)
+- `settling_velocity` with `Wu_Wang` failed (undefined `d`, `d_ast`) (potinar)
+- `coastline_evolution` called the non-existent `utils.nearest` (potinar)
 
 ## [3.2.7] - 2026-04-29
 ### Added
