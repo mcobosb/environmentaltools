@@ -6,6 +6,40 @@ Models Module
 
 The models module groups the set-up, execution and reading of numerical models.
 
+Which model to use
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 41 41
+
+   * - Model
+     - Use it for
+     - Limitations
+   * - SWAN (:mod:`~environmentaltools.models.swan`)
+     - Spectral wave propagation in 2-D over real bathymetry (refraction,
+       diffraction, nesting), batches of sea states.
+     - Waves only: no currents or sediment transport.
+   * - SWAN → COPLA → Kobayashi (:mod:`~environmentaltools.models.swan_copla`)
+     - Sediment transport field in plan (2-D): longshore transport,
+       circulation cells, effect of structures.
+     - Depth-averaged currents: no undertow, so the offshore cross-shore
+       transport of storms is underestimated. The bed is not updated (the
+       result is the transport field; the bed change would need the sediment
+       balance, ∂zb/∂t = −∇·q/(1−p)).
+   * - CSHORE (:mod:`~environmentaltools.models.cshore`)
+     - Cross-shore profiles: surf and swash zone, undertow, runup,
+       overtopping and profile change (erosion, bars) during storms.
+     - 1-D: each profile is solved independently assuming an alongshore
+       uniform beach (∂/∂y = 0); no refraction/diffraction in plan, structures
+       or circulation cells.
+
+Both approaches are complementary. The sediment transport formula of
+Kobayashi et al. (2008) used in SWAN → COPLA
+(:func:`environmentaltools.processes.kobayashi_transport`) follows the
+implementation of its authors in CSHORE; only the hydrodynamic fields come from
+SWAN and COPLA instead of CSHORE.
+
 SWAN
 ----
 

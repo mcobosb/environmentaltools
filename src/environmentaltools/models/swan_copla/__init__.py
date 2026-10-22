@@ -16,6 +16,14 @@ Typical use::
     for k, label in enumerate(sea_states.index):
         grid = swan_copla.nesting(k, label, params, sea_states)
 
+When to use: to obtain the sediment transport field in plan (2-D) over a real
+coastline, where refraction, diffraction, structures and circulation cells
+matter, mainly for longshore transport. COPLA currents are depth-averaged, so
+the undertow and the offshore cross-shore transport of storms are missing, and
+the bathymetry is not updated (the result is the transport field, not the bed
+change). For profile erosion, runup or overtopping use
+:mod:`environmentaltools.models.cshore`.
+
 For new SWAN projects (curvilinear grids, nesting, batches of cases) use
 :mod:`environmentaltools.models.swan`.
 """

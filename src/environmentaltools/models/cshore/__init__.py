@@ -1,5 +1,12 @@
 """CSHORE cross-shore profile model: configuration, input file, execution and outputs.
 
+When to use: to study cross-shore profiles of beaches that are roughly
+uniform alongshore (each profile is solved independently, ∂/∂y = 0): surf and
+swash zone, undertow, runup, overtopping and profile change (erosion, bars)
+during storms. It does not capture refraction/diffraction in plan, structures
+or circulation cells; for those use
+:mod:`environmentaltools.models.swan_copla`.
+
 Typical use::
 
     from environmentaltools.models import cshore

@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata
-from scipy.special import erfc
+from scipy.special import erf, erfc
 
 from environmentaltools.common import read, utils
 from environmentaltools.processes import waves
@@ -24,7 +24,9 @@ def slopes(data, variable="DirU"):
     Returns
     -------
     np.ndarray
-        Array of bottom slopes in the specified direction
+        Change of ``depth`` over 1 m in the specified direction (positive when the
+        water gets deeper, i.e. when the bed descends). The bed slope used by
+        :func:`kobayashi_transport` is ``-slopes(grid, "DirM")``.
     """
     xi, yi = (
         (data["x"] + np.cos(data[variable] * np.pi / 180)).reshape(-1),
@@ -40,145 +42,174 @@ def slopes(data, variable="DirU"):
     return Sb
 
 
-def kobayashi_transport(depth, setup, kp, Qb, U, DirU, Sb, Hs, Tp, params):
-    """Suspended and bed-load transport following Kobayashi et al. (2008).
+_HERMITE_X, _HERMITE_W = np.polynomial.hermite_e.hermegauss(64)
+_HERMITE_W = _HERMITE_W / np.sqrt(2 * np.pi)
+
+
+def _friction_factor_gf(w_sta, v_sta):
+    """``GF = E[((W* + ξ)² + V*²)^(3/2)]`` with ξ ~ N(0, 1).
+
+    Mean of the cubed velocity normalized by σT, used in the bottom friction
+    dissipation. For ``V* = 0`` it is the analytical expression of CSHORE
+    (``GBXAGF``, normal incidence); otherwise it is computed by Gauss-Hermite
+    quadrature (CSHORE uses an approximation for oblique waves).
+    """
+    w, v = np.broadcast_arrays(np.asarray(w_sta, float), np.asarray(v_sta, float))
+    normal = w * (w**2 + 3) * erf(w / np.sqrt(2)) + (w**2 + 2) * np.sqrt(2 / np.pi) * np.exp(-(w**2) / 2)
+    oblique = np.sum(_HERMITE_W * ((w[..., None] + _HERMITE_X) ** 2 + v[..., None] ** 2) ** 1.5, axis=-1)
+    return np.where(np.abs(v) < 1e-12, normal, oblique)
+
+
+def _probability(r, w_sta, v_sta):
+    """Probability of sediment movement (``r = Rb``) or suspension (``r = Rs``), CSHORE ``SEDTRA``."""
+    f = r**2 - v_sta**2
+    with np.errstate(invalid="ignore"):
+        f = np.sqrt(np.where(f > 0, f, 0.0))
+    p = 0.5 * (erfc((f + w_sta) / np.sqrt(2)) + erfc((f - w_sta) / np.sqrt(2)))
+    return np.where(r**2 - v_sta**2 < 0, 1.0, p)
+
+
+def kobayashi_transport(depth, setup, Hs, Tp, kp, wave_dir, Qb, U, current_dir, Sb, params):
+    """Suspended and bed-load transport of Kobayashi et al. (2008), as implemented in CSHORE.
 
     Pure function of 2-D fields: they can come from any wave and current model
-    (e.g. SWAN + COPLA in :mod:`environmentaltools.models.swan_copla`).
+    (e.g. SWAN + COPLA in :mod:`environmentaltools.models.swan_copla`). The
+    equations follow the subroutine ``SEDTRA`` of CSHORE
+    (https://github.com/erdc/cshore) for obliquely incident waves, applied at
+    each node in a frame aligned with the local wave direction (``θ = 0``): the
+    current is split into the component along the waves (``W*``) and across
+    them (``V*``), both normalized by the standard deviation of the orbital
+    velocity ``σT``.
+
+    Adaptations to a 2-D grid (not in CSHORE, which works on cross-shore
+    profiles): the bed slope ``Sb`` is taken along the wave direction; the
+    friction factor ``GF`` is computed exactly for any ``V*`` (CSHORE uses an
+    approximation for oblique waves); the breaking fraction ``Qb`` comes from
+    the wave model; no roller (``IROLL = 0``) and no cap of the cross-shore
+    undertow (``USTA <= 1``).
 
     Args:
-        depth (np.ndarray): Still water depth (m).
+        depth (np.ndarray): Still water depth (m, positive downwards).
         setup (np.ndarray): Wave setup (m).
+        Hs (float | np.ndarray): Local significant wave height (m); ``Hrms = Hs/√2``.
+        Tp (float | np.ndarray): Peak period (s).
         kp (np.ndarray): Wave number (rad/m).
+        wave_dir (np.ndarray): Wave propagation direction (degrees).
         Qb (np.ndarray): Fraction of breaking waves.
-        U (np.ndarray): Current speed (m/s).
-        DirU (np.ndarray): Current direction (degrees).
-        Sb (np.ndarray): Bottom slope in the current direction
-            (see :func:`slopes`).
-        Hs (float): Significant wave height (m).
-        Tp (float): Peak period (s).
-        params (dict): Constants:
+        U (np.ndarray): Depth-averaged current speed (m/s).
+        current_dir (np.ndarray): Current direction (degrees, same convention as ``wave_dir``).
+        Sb (np.ndarray): Bed slope along the wave direction, positive when the bed
+            rises in the direction of propagation (``-slopes(grid, "DirM")``).
+        params (dict): Constants (CSHORE name in brackets):
 
-            - fb: bottom friction factor
-            - wf: sediment fall velocity (m/s)
-            - gamma: breaker ratio
-            - rho: water density (kg/m3)
-            - br: roller front slope (rad)
-            - eb, ef: suspension efficiencies due to breaking and to bottom friction
-            - S: specific gravity of the sediment
-            - aK: suspended load parameter
-            - d50: median grain size (m)
-            - Shic: critical Shields parameter
-            - bK: bed load parameter
-            - phi: sediment friction angle (rad)
-            - local_angle: grid orientation (degrees)
+            - fb: bottom friction factor (``fw``; CSHORE uses ``fb/2``)
+            - wf: sediment fall velocity (m/s) (``WF``)
+            - gamma: breaker ratio (``GAMMA``)
+            - eb, ef: suspension efficiencies due to breaking and to bottom friction (``EFFB``, ``EFFF``)
+            - S: specific gravity of the sediment (``SG``)
+            - aK: suspended load parameter (``SLP``)
+            - d50: median grain size (m) (``D50``)
+            - Shic: critical Shields parameter (``SHIELD``)
+            - bK: bed load parameter (``BLP``)
+            - phi: sediment friction angle (rad) (``atan(TANPHI)``)
+            - local_angle: grid orientation (degrees) for ``qc``/``ql``
             - tburst: duration of the sea state (s)
 
     Returns:
-        dict: Fields with the same shape as ``depth``: total depth ``D``,
-        celerity ``cp``, ``sigma``, ``Rs``, ``Ps``, ``Hb``, roller ``Dr``,
-        ``arot``, dissipations ``Db`` and ``Df``, ``Vs``, suspended load
-        ``Qst``, ``Rb``, ``Pb``, ``Gs``, bed load ``Qbt`` and the transport
-        ``qc`` and ``ql`` (``(Qbt + Qst) * tburst`` projected with ``DirU -
-        local_angle``).
+        dict: Fields with the shape of ``depth``: total depth ``D``, phase
+        celerity ``cp``, orbital velocity ``sigma`` (σT), normalized currents
+        ``W_sta`` and ``V_sta``, ``Rb``, ``Rs``, probabilities ``Pb`` and ``Ps``,
+        breaker height ``Hb``, ``arot`` (``ABREAK``), dissipations ``Db`` and
+        ``Df`` (W/m²), ``GF``, ``Gs``, ``Vs`` (m), bed load ``Qbt`` and suspended
+        load ``Qst`` (m²/s, magnitude), the transport vector ``qx``, ``qy``
+        (m²/s, axes of ``wave_dir``) and ``qc``, ``ql`` (m³/m over ``tburst``,
+        across and along ``local_angle``).
+
+    References:
+        Kobayashi, N., Payo, A. and Schmied, L. (2008). Cross-shore suspended
+        sand and bedload transport on beaches. J. Geophys. Res., 113, C07001.
     """
     G = 9.8091
-    U, DirU, Sb = np.asarray(U, float), np.asarray(DirU, float), np.asarray(Sb, float)
-    kp, Qb = np.asarray(kp, float), np.asarray(Qb, float)
+    rho = params.get("rho", 1025.0)
+    tanphi = np.tan(params["phi"])
+    as_f = lambda a: np.asarray(a, float)  # noqa: E731
+    Hs, Tp, kp, Qb, U, Sb = as_f(Hs), as_f(Tp), as_f(kp), as_f(Qb), as_f(U), as_f(Sb)
+    relative = np.deg2rad(as_f(current_dir) - as_f(wave_dir))
+
     f = {}
-    f["D"] = np.asarray(depth, float) + np.asarray(setup, float)
-    f["D"][f["D"] < 0.1] = np.nan  # Total depth
-    f["cp"] = np.sqrt(G * f["D"])  # Shallow water waves
-    f["sigma"] = Hs / np.sqrt(8) / f["D"] * f["cp"]
-    f["sigma"][np.isnan(f["sigma"])] = 0
+    f["D"] = as_f(depth) + as_f(setup)
+    f["D"] = np.where(f["D"] < 0.1, np.nan, f["D"])  # dry or very shallow nodes
+    f["cp"] = 2 * np.pi / (Tp * kp)  # linear phase celerity (CP = ω/k)
 
-    f["Rs"] = (2 / params["fb"]) ** (1 / 3) * params["wf"] / f["sigma"]
-    f["Rs"][np.isnan(f["Rs"])] = 0
-    f["Ps"] = 0.5 * erfc((f["Rs"] + U) / np.sqrt(2)) + 0.5 * erfc(
-        (f["Rs"] - U) / np.sqrt(2)
-    )
+    # Orbital velocity: σ_η = Hrms/√8, σ* = σ_η/h <= 1, σT = Cp σ*  (l. 424, 749-750, 996)
+    sig_sta = np.minimum(Hs / np.sqrt(2) / np.sqrt(8) / f["D"], 1.0)
+    f["sigma"] = f["cp"] * sig_sta
 
-    f["Hb"] = (
-        0.88
-        / kp
-        * np.tanh(
-            params["gamma"]
-            * kp
-            * f["D"]
-            / (0.88 * f["cp"] * Tp)
+    # Current along (W*) and across (V*) the waves, normalized by σT  (l. 1006-1013, 4757-4758)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        u_sta = np.where(f["sigma"] > 1e-10, U / f["sigma"], 0.0)
+    f["W_sta"] = u_sta * np.cos(relative)
+    f["V_sta"] = u_sta * np.sin(relative)
+
+    # Movement and suspension probabilities  (l. 4752-4780)
+    fb2 = 0.5 * params["fb"]
+    gsd50s = G * (params["S"] - 1) * params["d50"] * params["Shic"]
+    f["Rb"] = np.sqrt(gsd50s / fb2) / f["sigma"]
+    f["Rs"] = params["wf"] / f["sigma"] / fb2 ** (1 / 3)
+    f["Pb"] = _probability(f["Rb"], f["W_sta"], f["V_sta"])
+    f["Ps"] = np.minimum(_probability(f["Rs"], f["W_sta"], f["V_sta"]), f["Pb"])
+
+    # Breaking dissipation  (DBREAK, l. 3104-3146)
+    Hrms = Hs / np.sqrt(2)
+    f["Hb"] = 0.88 / kp * np.tanh(params["gamma"] * kp * f["D"] / 0.88)
+    f["Hb"] = np.maximum(f["Hb"], Hrms)  # HM = WHRMS when Hrms >= HM
+    f["arot"] = np.maximum(2 * np.pi / kp / f["D"] * Sb / 3, 1.0)
+    db_sta = 0.25 * f["arot"] * Qb * f["Hb"] ** 2 / Tp  # Db/(ρg)
+    f["Db"] = rho * G * db_sta
+
+    # Bottom friction dissipation  (l. 670, GBXAGF)
+    f["GF"] = _friction_factor_gf(f["W_sta"], f["V_sta"])
+    df_sta = fb2 * f["GF"] * f["sigma"] ** 3 / G  # Df/(ρg)
+    f["Df"] = rho * G * df_sta
+
+    # Suspended sediment volume per unit area  (l. 4783-4786)
+    f["Vs"] = f["Ps"] * (params["ef"] * df_sta + params["eb"] * db_sta) / (params["wf"] * (params["S"] - 1))
+    f["Vs"] = f["Vs"] * np.sqrt(1 + Sb**2)
+
+    # Bed slope function Gs, bounded by GSLMAX = 10  (l. 4306-4334)
+    gslmax = 10.0
+    slope_down = -tanphi * (gslmax - 1) / gslmax
+    slope_up = tanphi * (gslmax + 1) / (gslmax + 2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f["Gs"] = np.where(
+            Sb < 0,
+            np.where(Sb > slope_down, tanphi / (tanphi + Sb), gslmax),
+            np.where(Sb < slope_up, (tanphi - 2 * Sb) / (tanphi - Sb), -gslmax),
         )
-    )  # Kobayashi 0.88
-    f["Hb"][f["Hb"] / f["D"] > 0.88] = (
-        0.88 * f["D"][f["Hb"] / f["D"] > 0.88]
-    )
-    f["Hb"][np.isnan(f["Hb"])] = 0
+    a_slope = params["aK"] + np.where(Sb > 0, np.sqrt(np.abs(Sb) / tanphi), 0.0)
 
-    #   Suspended load transport
-    # --------------------------------------------------------------------------
-    f["Dr"] = (
-        G
-        * (params["rho"] * 0.9 * f["Hb"] ** 2 * f["cp"] / Tp)
-        * np.sin(params["br"])
-    )  # Roller effect
-    f["Dr"][np.isnan(f["Dr"])] = 0
+    # Bed load, oblique waves with θ = 0  (l. 4789-4806); BQ = BLP/(g(s-1))·(0.5 + Qb) for sand
+    bq = params["bK"] / (G * (params["S"] - 1)) * (0.5 + Qb)
+    dum = bq * f["Pb"] * f["sigma"] ** 3
+    w, v = f["W_sta"], f["V_sta"]
+    qb_along = dum * f["Gs"] * (1 + w * v**2)
+    qb_across = dum * v * (1 + w**2 + v**2)
 
-    f["arot"] = 1 / 3 * Sb * Tp * np.sqrt(G / f["D"])
-    f["arot"][np.isnan(f["arot"])] = 0
-    f["Db"] = (
-        params["rho"]
-        * f["arot"]
-        * G
-        * Qb
-        * f["Hb"] ** 2
-        / (4 * Tp)
-    )  # Battjes and Stive, 1985
-    f["Df"] = 0.5 * params["rho"] * G * params["fb"] * U ** 3
-    f["Vs"] = (
-        (params["eb"] * (f["Db"] - f["Dr"]) + params["ef"] * f["Df"])
-        * f["Ps"]
-        / (params["rho"] * G * (params["S"] - 1) * params["wf"])
-    )
-    f["Qst"] = params["aK"] * U * f["Vs"] * np.sqrt(1 + Sb ** 2)
+    # Suspended load: mean current × Vs  (l. 4825, 4833)
+    qs_along = a_slope * U * np.cos(relative) * f["Vs"]
+    qs_across = U * np.sin(relative) * f["Vs"]
 
-    #    Bed-load transport
-    # --------------------------------------------------------------------------
-    f["Rb"] = (
-        np.sqrt(
-            2 * G * (params["S"] - 1) * params["d50"] * params["Shic"] / params["fb"]
-        )
-        / f["sigma"]
-    )
-    f["Rb"][np.isnan(f["Rb"])] = 0
-    f["Pb"] = 0.5 * erfc((f["Rb"] + U) / np.sqrt(2)) + 0.5 * erfc(
-        (f["Rb"] - U) / np.sqrt(2)
-    )
+    f["Qbt"] = np.hypot(qb_along, qb_across)
+    f["Qst"] = np.hypot(qs_along, qs_across)
 
-    f["Gs"] = (np.tan(params["phi"]) - 2 * Sb) / (
-        np.tan(params["phi"]) - Sb
-    )
-    f["Gs"][Sb < 0] = np.tan(params["phi"]) / (
-        np.tan(params["phi"]) + Sb[Sb < 0]
-    )
-    f["Qbt"] = (
-        params["bK"]
-        * f["Pb"]
-        * f["Gs"]
-        * f["sigma"] ** 3
-        / (G * (params["S"] - 1))
-    )  # Formulación de Meyer-Peter-Mueller, modificado
-
-    # Cross-shore and alongshore sediment transport
-    # --------------------------------------------------------------------------
-    f["qc"] = (
-        (f["Qbt"] + f["Qst"])
-        * np.sin((DirU - params["local_angle"]) * np.pi / 180)
-        * params["tburst"]
-    )  # /((1.00-param['materiales']['p'])*param['malla']['local']['inc'][0])
-    f["ql"] = (
-        (f["Qbt"] + f["Qst"])
-        * np.cos((DirU - params["local_angle"]) * np.pi / 180)
-        * params["tburst"]
-    )  # /((1.00-param['materiales']['p'])*param['malla']['local']['inc'][1])
+    # From the wave frame to the axes of wave_dir, and to the grid (local_angle)
+    theta = np.deg2rad(as_f(wave_dir))
+    q_along, q_across = qb_along + qs_along, qb_across + qs_across
+    f["qx"] = q_along * np.cos(theta) - q_across * np.sin(theta)
+    f["qy"] = q_along * np.sin(theta) + q_across * np.cos(theta)
+    alpha = np.deg2rad(params["local_angle"])
+    f["ql"] = (f["qx"] * np.cos(alpha) + f["qy"] * np.sin(alpha)) * params["tburst"]
+    f["qc"] = (-f["qx"] * np.sin(alpha) + f["qy"] * np.cos(alpha)) * params["tburst"]
 
     return f
 
@@ -187,13 +218,16 @@ def sediment_transport_Kobayashi(j, data, grid, params):
     """Kobayashi et al. (2008) transport on a ``grid`` dict (deprecated).
 
     .. deprecated:: Use :func:`kobayashi_transport`, which takes the fields
-       explicitly. This wrapper reads them from ``grid`` and ``Hs``/``Tp`` from
-       ``data.loc[j]``.
+       explicitly. This wrapper reads them from ``grid`` (``depth``, ``Setup``,
+       ``Hs``, ``kp``, ``DirM``, ``Qb``, ``U``, ``DirU``, ``Sb``) and ``Tp`` from
+       ``data.loc[j]``. Since the correction of the formulation (CSHORE), ``Sb``
+       is the bed slope along the wave direction (positive upwards) and the
+       results differ from earlier versions.
 
     Args:
         j: Index label of the sea state in ``data``.
-        data (pd.DataFrame): Sea states with ``Hs`` and ``Tp``.
-        grid (dict): Fields ``depth``, ``Setup``, ``kp``, ``Qb``, ``U``, ``DirU`` and ``Sb``.
+        data (pd.DataFrame): Sea states with ``Tp`` (and ``Hs`` if not in ``grid``).
+        grid (dict): Fields of the wave and current models.
         params (dict): Constants of :func:`kobayashi_transport`.
 
     Returns:
@@ -202,8 +236,9 @@ def sediment_transport_Kobayashi(j, data, grid, params):
     warnings.warn("environmentaltools.processes.sediment_transport_Kobayashi is deprecated and will be removed "
                   "in version 4.0; use environmentaltools.processes.kobayashi_transport instead.",
                   DeprecationWarning, stacklevel=2)
-    grid.update(kobayashi_transport(grid["depth"], grid["Setup"], grid["kp"], grid["Qb"], grid["U"], grid["DirU"],
-                                    grid["Sb"], data.loc[j, "Hs"], data.loc[j, "Tp"], params))
+    Hs = grid["Hs"] if "Hs" in grid else data.loc[j, "Hs"]
+    grid.update(kobayashi_transport(grid["depth"], grid["Setup"], Hs, data.loc[j, "Tp"], grid["kp"], grid["DirM"],
+                                    grid["Qb"], grid["U"], grid["DirU"], grid["Sb"], params))
     return grid
 
 

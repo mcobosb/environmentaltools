@@ -71,3 +71,76 @@ def test_coastline_evolution():
     assert list(evolution.index) == [2001, 2002]
     assert evolution.loc[2001].tolist() == [-1.0, -1.0]
     assert evolution.loc[2002].tolist() == [2.0, 2.0]
+
+
+# --------------------------------------------------------------------------- Kobayashi (CSHORE)
+from scipy.special import erf, erfc  # noqa: E402
+
+from environmentaltools.processes import kobayashi_transport  # noqa: E402
+from environmentaltools.processes.coastal import _friction_factor_gf  # noqa: E402
+
+G = 9.8091
+KOB = dict(fb=0.015, wf=0.03, gamma=0.7, eb=0.005, ef=0.01, S=2.65, aK=0.5, d50=0.0003, Shic=0.05,
+           bK=0.002, phi=np.arctan(0.63), local_angle=0.0, tburst=1.0)
+
+
+def cshore_sedtra(H, Hrms, Tp, k, umean, vmean, bslope, qbreak, p):
+    """Transcription of CSHORE SEDTRA (IANGLE = 1, IROLL = 0) at one node with θ = 0."""
+    sqr2, sqrg1 = np.sqrt(2), np.sqrt(2 / np.pi)
+    tanphi, fb2 = np.tan(p["phi"]), 0.5 * p["fb"]
+    cp = 2 * np.pi / Tp / k
+    sigt = cp * min(Hrms / np.sqrt(8) / H, 1.0)
+    usta, vsta = umean / sigt, vmean / sigt
+    rb = np.sqrt(G * (p["S"] - 1) * p["d50"] * p["Shic"] / fb2) / sigt
+    rs = p["wf"] / sigt / fb2 ** 0.3333
+    wsta, vcus = usta, vsta
+    fs, fbb = rs**2 - vcus**2, rb**2 - vcus**2
+    ps = 1.0 if fs < 0 else 0.5 * (erfc((np.sqrt(fs) + wsta) / sqr2) + erfc((np.sqrt(fs) - wsta) / sqr2))
+    pb = 1.0 if fbb < 0 else 0.5 * (erfc((np.sqrt(fbb) + wsta) / sqr2) + erfc((np.sqrt(fbb) - wsta) / sqr2))
+    ps = min(ps, pb)
+    hm = max(0.88 / k * np.tanh(p["gamma"] * k * H / 0.88), Hrms)
+    abreak = max(2 * np.pi / k / H * bslope / 3, 1.0)
+    dbsta = 0.25 * abreak * qbreak * hm**2 / Tp
+    gf = usta * (usta**2 + 3) * erf(usta / sqr2) + (usta**2 + 2) * sqrg1 * np.exp(-usta**2 / 2)  # GBXAGF, V = 0
+    dfsta = fb2 * gf * sigt**3 / G
+    vs = ps * (p["ef"] * dfsta + p["eb"] * dbsta) / (p["wf"] * (p["S"] - 1)) * np.sqrt(1 + bslope**2)
+    if bslope < 0:
+        gslope = tanphi / (tanphi + bslope)
+    else:
+        gslope = (tanphi - 2 * bslope) / (tanphi - bslope)
+    aslope = p["aK"] + (np.sqrt(bslope / tanphi) if bslope > 0 else 0.0)
+    dum = p["bK"] / (G * (p["S"] - 1)) * (0.5 + qbreak) * pb * sigt**3
+    qbx = dum * gslope * (1 + usta * vsta**2)
+    qby = dum * (vsta * (1 + usta**2 + vsta**2))
+    return {"Pb": pb, "Ps": ps, "Vs": vs, "qx": qbx + aslope * umean * vs, "qy": qby + vmean * vs}
+
+
+@pytest.mark.parametrize("umean, vmean, bslope, ef", [
+    (-0.2, 0.0, 0.02, 0.01),    # undertow, normal incidence
+    (0.1, 0.0, -0.01, 0.01),    # onshore current, bed descending (landward of a bar)
+    (-0.15, 0.4, 0.03, 0.0),    # longshore current (GF approximated in CSHORE: friction off)
+])
+def test_kobayashi_matches_cshore(umean, vmean, bslope, ef):
+    p = dict(KOB, ef=ef)
+    H, Hs, Tp, k, Qb = 2.0, 1.2, 8.0, 0.18, 0.3
+    ref = cshore_sedtra(H, Hs / np.sqrt(2), Tp, k, umean, vmean, bslope, Qb, p)
+    out = kobayashi_transport(np.array([H]), np.array([0.0]), Hs, Tp, np.array([k]), np.array([0.0]),
+                              np.array([Qb]), np.array([np.hypot(umean, vmean)]),
+                              np.array([np.degrees(np.arctan2(vmean, umean))]), np.array([bslope]), p)
+    for key in ref:
+        assert out[key][0] == pytest.approx(ref[key], rel=1e-9), key
+
+
+def test_kobayashi_is_rotation_invariant():
+    args = dict(depth=np.array([2.0]), setup=np.array([0.0]), Hs=1.2, Tp=8.0, kp=np.array([0.18]),
+                Qb=np.array([0.3]), U=np.array([0.3]), Sb=np.array([0.02]), params=KOB)
+    a = kobayashi_transport(wave_dir=np.array([0.0]), current_dir=np.array([30.0]), **args)
+    b = kobayashi_transport(wave_dir=np.array([90.0]), current_dir=np.array([120.0]), **args)
+    assert np.hypot(a["qx"], a["qy"]) == pytest.approx(np.hypot(b["qx"], b["qy"]))
+    assert b["qx"][0] == pytest.approx(-a["qy"][0]) and b["qy"][0] == pytest.approx(a["qx"][0])
+
+
+def test_friction_factor_matches_cshore_normal_incidence():
+    u = np.linspace(-1.5, 1.5, 7)
+    exact = u * (u**2 + 3) * erf(u / np.sqrt(2)) + (u**2 + 2) * np.sqrt(2 / np.pi) * np.exp(-u**2 / 2)
+    assert np.allclose(_friction_factor_gf(u, 0 * u), exact, rtol=1e-10)

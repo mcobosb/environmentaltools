@@ -6,7 +6,8 @@ All relevant project updates are documented here:
 ### Added
 - new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
 - `models.delft3d` (raw outputs, NEFIS `.dat` extraction, grid and wave field plots), `models.cshore`, `models.coastalme` and `models.swan_copla` (SWAN → COPLA → Kobayashi workflow) (potinar)
-- `processes.kobayashi_transport`: Kobayashi et al. (2008) transport as a pure function of the 2-D fields (potinar)
+- `processes.kobayashi_transport`: Kobayashi et al. (2008) transport as a pure function of the 2-D fields, following the implementation of CSHORE (`SEDTRA`, oblique waves) in a frame aligned with the local waves (potinar)
+- "which model to use" guide in the docs and docstrings of `models` (potinar)
 
 ### Changed
 - model readers/writers/runners moved from `common`, `processes` and `graphics` to `models`; the old names are deprecated aliases (removal in 4.0) (potinar)
@@ -16,6 +17,7 @@ All relevant project updates are documented here:
 ### Fixed
 - `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
 - `read_copla` discarded the `grid` passed to it (potinar)
+- Kobayashi transport compared with CSHORE: current normalized by the orbital velocity σT (was not), σT from the local Hrms (was the boundary Hs), breaker height (extra division by the wavelength), breaking dissipation coefficient ≥ 1, `Ps <= Pb`, bottom friction dissipation `(fb/2)·GF·σT³` (was `0.5·g·fb·U³`), breaking instead of breaking minus roller dissipation, bedload factor `(0.5 + Qb)`, bounded slope function, transport across the waves; results change (potinar)
 - `hydraulic_radius` failed (undefined `df`); trapezoidal, triangular, circular and parabolic sections used the rectangular formulas. `water_elevation` uses the same geometries (potinar)
 - `river_sediment_transport`: Yang failed (undefined `h`, wrong mask, second term dropped, natural instead of common logarithms, no result); Brownlie gave NaN (sign of the exponent of the critical Shields parameter, `np.std` of the diameters instead of `sigma_g`, no zero below the critical velocity) and accepts `"brownlie"`; Wilcock-Crowe ignored a given `Fs`, divided instead of multiplied to get the reference shear stress and skipped the last size class; `.loc` instead of chained assignment (silently ignored with pandas copy-on-write) (potinar)
 - `settling_velocity` with `Wu_Wang` failed (undefined `d`, `d_ast`) (potinar)

@@ -59,11 +59,12 @@ def test_legacy_kobayashi_matches_pure_function():
     rng = np.random.default_rng(0)
     shape = (6, 8)
     grid = {"depth": rng.uniform(0.5, 10, shape), "Setup": rng.uniform(-0.2, 0.3, shape),
-            "kp": rng.uniform(0.02, 0.5, shape), "Qb": rng.uniform(0, 1, shape), "U": rng.uniform(0, 1.2, shape),
-            "DirU": rng.uniform(0, 360, shape), "Sb": rng.uniform(-0.05, 0.05, shape)}
+            "Hs": rng.uniform(0.2, 2, shape), "kp": rng.uniform(0.02, 0.5, shape), "DirM": rng.uniform(0, 360, shape),
+            "Qb": rng.uniform(0, 1, shape), "U": rng.uniform(0, 1.2, shape), "DirU": rng.uniform(0, 360, shape),
+            "Sb": rng.uniform(-0.05, 0.05, shape)}
     data = pd.DataFrame({"Hs": [1.8], "Tp": [9.0]})
-    new = kobayashi_transport(grid["depth"], grid["Setup"], grid["kp"], grid["Qb"], grid["U"], grid["DirU"],
-                              grid["Sb"], 1.8, 9.0, KOBAYASHI)
+    new = kobayashi_transport(grid["depth"], grid["Setup"], grid["Hs"], 9.0, grid["kp"], grid["DirM"], grid["Qb"],
+                              grid["U"], grid["DirU"], grid["Sb"], KOBAYASHI)
     with pytest.warns(DeprecationWarning):
         old = sediment_transport_Kobayashi(0, data, dict(grid), KOBAYASHI)
     for key in new:

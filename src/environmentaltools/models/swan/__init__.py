@@ -1,5 +1,10 @@
 """SWAN projects driven by a YAML file.
 
+When to use: spectral wave propagation over real bathymetry in 2-D
+(refraction, diffraction, nesting from deep water to the coast) for batches
+of sea states. It gives wave fields and spectra, not currents or sediment
+transport (see :mod:`environmentaltools.models.swan_copla`).
+
 Typical use::
 
     from environmentaltools.models import swan
