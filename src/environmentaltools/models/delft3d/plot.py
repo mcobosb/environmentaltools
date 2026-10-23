@@ -609,11 +609,84 @@ def plot_wave_field(
     if variable in ("dir", "pdir"):
         val = (270.0 - val) % 360.0
 
+    directions = None
+    if quiver_variable is not None:
+        directions = _delft_read_var(dat_path, quiver_variable, gp, fill_threshold=_NEFIS_FILL)
+        if quiver_variable in ("dir", "pdir"):
+            directions = (270.0 - directions) % 360.0     # Delft3D cartesian → nautical (from)
+
     n_valid = int(np.sum(~np.isnan(val)))
     print(f"[plot_delft] '{variable}'  shape={val.shape}  "
           f"valid={n_valid}/{val.size}  "
           f"min={np.nanmin(val) if n_valid else float('nan'):.4f}  "
           f"max={np.nanmax(val) if n_valid else float('nan'):.4f}")
+
+    if title is None:
+        title = f"{variable.upper()} \u2014 {dat_path.parent.name}"
+    return plot_wave_field_grid(
+        X, Y, val, directions=directions, variable=variable,
+        coast_xyz=coast_xyz, utm_zone=utm_zone, cmap=cmap, vmin=vmin, vmax=vmax,
+        color_land=color_land, color_ocean=color_ocean, coast_gap_m=coast_gap_m,
+        land_is_north=land_is_north, margin=margin, quiver_stride=quiver_stride,
+        quiver_scale=quiver_scale, quiver_color=quiver_color, quiver_only=quiver_only,
+        title=title, cbar_label=cbar_label, figsize=figsize, fname=fname,
+    )
+
+
+def plot_wave_field_grid(
+    X,
+    Y,
+    values,
+    directions=None,
+    variable="hsign",
+    coast_xyz=None,
+    utm_zone=30,
+    cmap=None,
+    vmin=None,
+    vmax=None,
+    color_land="#EDE8DF",
+    color_ocean="#C8DCF0",
+    coast_gap_m=5000,
+    land_is_north=True,
+    margin=2000,
+    quiver_stride=2,
+    quiver_scale=40,
+    quiver_color="white",
+    quiver_only=False,
+    title="",
+    cbar_label=None,
+    figsize=(10, 8),
+    fname=None,
+):
+    """Plot a wave field already read on a structured grid (any model).
+
+    Same figure as :func:`plot_wave_field` (cartopy UTM basemap, coastline and
+    land fill, arrows scaled by the field), but from arrays, so it serves for
+    Delft3D-WAVE, SWAN (:func:`environmentaltools.models.swan.plot_wave_field`)
+    or any other model with a curvilinear or regular grid.
+
+    Args:
+        X, Y (np.ndarray): 2-D node coordinates (UTM, m). NaN = no node.
+        values (np.ndarray): 2-D field, same shape. NaN = not drawn (land,
+            dry or masked cells).
+        directions (np.ndarray | None): 2-D mean wave direction, nautical
+            convention (degrees clockwise from North, direction the waves
+            come FROM). None = no arrows.
+        variable (str): Name of the field, used for the default colormap,
+            label and scale (see ``_DELFT_FIELD_META``). Defaults to "hsign".
+        title (str | None): Axes title. Defaults to "" (none).
+
+    The remaining arguments are those of :func:`plot_wave_field`
+    (``quiver_variable`` is replaced by ``directions``).
+
+    Returns:
+        matplotlib.axes.GeoAxes: The cartopy axes with the field plot.
+    """
+    ccrs = _cartopy_crs()
+    from environmentaltools.graphics.utils import show
+
+    val = np.asarray(values, dtype=float)
+    quiver_variable = None if directions is None else "dir"
 
     # ------------------------------------------------------------------
     # Colormap and label
@@ -735,12 +808,8 @@ def plot_wave_field(
     #   • geometrically clipped to ocean (land polygon mask)
     # ------------------------------------------------------------------
     if quiver_variable is not None:
-        dir_arr = _delft_read_var(dat_path, quiver_variable, gp, fill_threshold=_NEFIS_FILL)
-        # Mask dir_arr with the exact same masks applied to val.
-        dir_arr = np.where(~_active, np.nan, dir_arr)
-        dir_arr = np.where(np.isnan(X) | np.isnan(Y), np.nan, dir_arr)
-        if depth_min and variable != "depth":
-            dir_arr = np.where(_dep < depth_min, np.nan, dir_arr)
+        # Same masks as the field (cells where the field is NaN get no arrow).
+        dir_arr = np.where(np.isnan(val), np.nan, np.asarray(directions, dtype=float))
 
         # Subsample — same X, Y, val as pcolormesh.
         st   = quiver_stride
@@ -749,14 +818,8 @@ def plot_wave_field(
         Ds   = dir_arr[::st, ::st]
         Mags = val[::st, ::st]
 
-        # Aplicar la misma transformación que usa pcolormesh para dir/pdir,
-        # y luego fórmula cartesiana estándar U=cos, V=sin.
-        # (270 - dir) % 360 convierte náutico-FROM a cartesiano-TO (CCW desde Este):
-        #   dir=0   (del N, va al S) → 270° → (cos270, sin270) = (0,-1) Sur  ✓
-        #   dir=90  (del E, va al O) → 180° → (cos180, sin180) = (-1,0) Oeste ✓
-        #   dir=270 (del O, va al E) →   0° → (cos0,   sin0)   = (1, 0) Este  ✓
-        if quiver_variable in ("dir", "pdir"):
-            Ds = (270.0 - Ds) % 360.0
+        # Nautical FROM → unit vector TOWARDS: (−sin, −cos)
+        #   dir=0 (from N) → (0, −1) South;  dir=90 (from E) → (−1, 0) West.
         rad = np.deg2rad(Ds)
         Us  = (-1) * np.sin(rad)
         Vs  = (-1) * np.cos(rad)
@@ -847,9 +910,8 @@ def plot_wave_field(
     # ------------------------------------------------------------------
     # Title
     # ------------------------------------------------------------------
-    if title is None:
-        title = f"{variable.upper()} \u2014 {dat_path.parent.name}"
-    ax.set_title(title, fontsize=11, fontweight="bold", pad=8)
+    if title:
+        ax.set_title(title, fontsize=11, fontweight="bold", pad=8)
 
     show(fname)
     return ax

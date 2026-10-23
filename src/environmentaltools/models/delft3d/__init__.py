@@ -13,9 +13,9 @@ Grid files (``.grd``/``.dep``) are read with :mod:`environmentaltools.models.com
 """
 
 from .read import extract_wave_dat, raw_files, raw_files_point
-from .plot import plot_grids, plot_wave_field
+from .plot import plot_grids, plot_wave_field, plot_wave_field_grid
 
 __all__ = [
     "extract_wave_dat", "raw_files", "raw_files_point",
-    "plot_grids", "plot_wave_field",
+    "plot_grids", "plot_wave_field", "plot_wave_field_grid",
 ]
