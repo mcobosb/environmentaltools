@@ -77,6 +77,7 @@ from .spatial import (
     include_coastal_Andalusian_cities,
     include_seas,
     plot_delft_grids,
+    plot_delft_wave_field,
 )
 
 
@@ -171,6 +172,7 @@ __all__ = [
     "include_coastal_Andalusian_cities",
     "include_seas",
     "plot_delft_grids",
+    "plot_delft_wave_field",
     # Regimes
     "pot_lmom",
     "annual_maxima_analysis",
