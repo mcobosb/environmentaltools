@@ -116,6 +116,51 @@ def plot_map(cfg, case, grid, quantity="hs", ax=None, cmap="viridis", arrows="di
     return ax
 
 
+def plot_wave_field(cfg, case, grid, quantity="hs", folder=None, depth_min=1.0, **kw):
+    """Publication map of a case: same figure as :func:`environmentaltools.models.delft3d.plot_wave_field`.
+
+    Reads ``map_<grid>.tab`` (see :func:`read_map`) and draws it with
+    :func:`environmentaltools.models.delft3d.plot_wave_field_grid` (cartopy UTM
+    basemap, coastline, land fill, arrows scaled by the field), so Delft3D and
+    SWAN figures look the same. Land and dry nodes are taken from the INPUT
+    bathymetry; nodes shallower than ``depth_min`` are hidden, as in Delft3D.
+
+    Args:
+        cfg (SwanConfig): Configuration.
+        case (str): Case name.
+        grid (str): Grid name (its map must be a whole grid, not a subgrid).
+        quantity (str): Column of the map to draw (``hs``, ``tps``…).
+        folder (str | Path | None): Folder with ``map_<grid>.tab`` (else
+            ``results_dir/<case>`` or ``archive_dir/<case>``).
+        depth_min (float): Hide nodes shallower than this (m). 0/None = only dry nodes.
+        **kw: Passed to ``plot_wave_field_grid`` (``coast_xyz``, ``cmap``, ``vmin``,
+            ``vmax``, ``quiver_stride``, ``quiver_scale``, ``quiver_color``, ``title``,
+            ``fname``…). Arrows use the map column ``dir`` when present
+            (``directions=None`` to switch them off).
+
+    Returns:
+        matplotlib.axes.GeoAxes: The cartopy axes.
+    """
+    from ..delft3d.plot import plot_wave_field_grid
+
+    m = read_map(cfg, case, grid, folder)
+    shape = _map_shape(cfg, grid)
+    if len(m) != shape[0] * shape[1] or ((cfg["outputs"].get("maps") or {}).get(grid) or {}).get("subgrid"):
+        raise ValueError(f"map_{grid}.tab of {case} is not a whole-grid map {shape}")
+    g = cfg.grids()[grid]
+    dep = np.nan_to_num(g.depth, nan=0.0)
+    hide = ~(dep > max(depth_min or 0.0, cfg["set"]["depmin"]))
+    # node coordinates from the grid: XP/YP of a TABLE keep only ~4 significant digits
+    # (0.5383E+06 → ±50 m in x, ±500 m in y in UTM), which turns the grid edges into steps
+    X, Y = g.x, g.y
+    val = np.where(hide, np.nan, m[quantity].to_numpy().reshape(shape))
+    if "directions" not in kw and "dir" in m:
+        kw["directions"] = m["dir"].to_numpy().reshape(shape)     # nautical (SET NAUTICAL)
+    variable = {"hs": "hsign"}.get(quantity, quantity)
+    kw.setdefault("title", "")
+    return plot_wave_field_grid(X, Y, val, variable=variable, **kw)
+
+
 def plot_case_maps(cfg, case, folder=None, quantity=None, file_name=None, dpi=None):
     """One panel per saved map of a case (all grids), with the output points; optionally saved to a PNG.
 
@@ -131,10 +176,14 @@ def plot_case_maps(cfg, case, folder=None, quantity=None, file_name=None, dpi=No
     pts = None
     if (cfg.cases_dir / "_common" / "points.csv").exists():
         pts = pd.read_csv(cfg.cases_dir / "_common" / "points.csv")
-    meta_f = Path(folder or cfg.results_dir / case) / "case.json"
-    v = json.loads(meta_f.read_text())["values"] if meta_f.exists() else {}
+    metas = [Path(folder) / "case.json"] if folder else []
+    metas += [cfg.results_dir / case / "case.json", cfg.cases_dir / case / "case.json"]
+    meta_f = next((f for f in metas if f.exists()), None)
+    v = json.loads(meta_f.read_text())["values"] if meta_f else {}
+    vmax = max(np.nanmax(read_map(cfg, case, g, folder)[quantity].to_numpy()) for g in grids)
+    levels = np.linspace(0, vmax if vmax > 0 else 1, 21)        # same colour scale in every panel
     for ax, g in zip(axs[0], grids):
-        plot_map(cfg, case, g, quantity, ax=ax, folder=folder, n_arrows=fs.get("n_arrows", 20))
+        plot_map(cfg, case, g, quantity, ax=ax, folder=folder, n_arrows=fs.get("n_arrows", 20), levels=levels)
         if pts is not None:
             xl, yl = ax.get_xlim(), ax.get_ylim()
             p = pts[pts.x.between(*xl) & pts.y.between(*yl)]

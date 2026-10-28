@@ -1,5 +1,10 @@
 """SWAN projects driven by a YAML file.
 
+When to use: spectral wave propagation over real bathymetry in 2-D
+(refraction, diffraction, nesting from deep water to the coast) for batches
+of sea states. It gives wave fields and spectra, not currents or sediment
+transport (see :mod:`environmentaltools.models.swan_copla`).
+
 Typical use::
 
     from environmentaltools.models import swan
@@ -22,7 +27,7 @@ from .run import run, swan_executable
 from .read import (quantity_columns, read_map, read_points, read_print, read_spectra, read_spectra_case,
                    spectrum_parameters,
                    read_table, summary)
-from .plot import plot_case_maps, plot_grids, plot_map
+from .plot import plot_case_maps, plot_grids, plot_map, plot_wave_field
 
 TEMPLATE = Path(__file__).with_name("swan_template.yaml")
 
@@ -33,5 +38,5 @@ __all__ = [
     "run", "swan_executable",
     "quantity_columns", "read_map", "read_points", "read_print", "read_spectra", "read_spectra_case", "spectrum_parameters",
     "read_table", "summary",
-    "plot_case_maps", "plot_grids", "plot_map",
+    "plot_case_maps", "plot_grids", "plot_map", "plot_wave_field",
 ]

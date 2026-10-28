@@ -1,40 +1,44 @@
-"""Processes module for environmental model computation and I/O.
+"""Physical processes.
 
-This module provides tools for:
-- Model execution (SWAN, read_copla, CSHORE, CoastalME)
-- Data processing and computation
-- Wave analysis and calculations
-- File I/O for various model formats
+Submodules:
+    waves: Wave theory, reflection analysis, zero crossing, closure depth and storm surge.
+    coastal: Bottom slopes, sediment transport (Kobayashi, CERC), plan shape and shoreline evolution.
+    hydrology: Rainfall-runoff, unit hydrograph, channel hydraulics and river sediment transport.
+    properties: Density and viscosity of sea water, sediment fall velocity.
+
+Model set-up, execution and outputs (SWAN, COPLA, CSHORE, CoastalME, Delft3D)
+moved to :mod:`environmentaltools.models`; the old names still work as
+deprecated aliases.
 """
 
-# Data loading functions
-from .load import (
-    create_mesh_dictionary,
-    read_cshore,
-    read_copla,
-    read_swan,
-    delft_raw_files_point,
-    delft_raw_files,
-    extract_delft_wave_dat,
+from environmentaltools._deprecation import moved
+from environmentaltools.processes._moved import COMPUTE, LOAD, WRITE
+
+# Waves
+from .waves import (
+    frequency_limits,
+    clsquare_s,
+    wave_number,
+    calculate_wave_reflection,
+    closure_depth,
+    zero_cross,
+    storm_surge_from_waves,
 )
 
-# Computation functions
-from .compute import (
-    create_db,
-    create_mesh,
-    create_xarray,
+# Coastal processes
+from .coastal import (
     slopes,
+    bed_slope,
+    kobayashi_transport,
     sediment_transport_Kobayashi,
     sediment_transport_CERC,
-    nesting,
-    run_swan,
-    run_copla,
-    run_cshore,
-    run_coastalme,
-    save_db,
-    clean,
     equilibrium_plan_shape,
     coastline_evolution,
+    flood_fill,
+)
+
+# Hydrology
+from .hydrology import (
     precipitation_to_flow,
     wet_soil,
     dry_soil,
@@ -44,64 +48,38 @@ from .compute import (
     cumulative_by_events,
     hydraulic_radius,
     water_elevation,
-    settling_velocity,
     river_sediment_transport,
-    storm_surge_from_waves,
-    flood_fill,
+)
+
+# Physical properties
+from .properties import (
+    fall_velocity,
+    density,
+    kinematic_viscosity,
+    settling_velocity,
     EOS_sea_water,
     bulk_fluid_density,
 )
 
-# Wave analysis functions
-from .waves import (
-    frequency_limits,
-    clsquare_s,
-    wave_number,
-    calculate_wave_reflection,
-    closure_depth,
-    fall_velocity,
-    density,
-    kinematic_viscosity,
-    zero_cross,
-)
-
-# File writing functions
-from .write import (
-    write_cshore,
-    write_swan,
-    write_copla,
-    directory,
-)
-
 __all__ = [
-    # Load
-    "create_mesh_dictionary",
-    "read_cshore",
-    "read_copla",
-    "read_swan",
-    "delft_raw_files_point",
-    "delft_raw_files",
-    "extract_delft_wave_dat",
-    # Compute - Data processing
-    "create_db",
-    "create_mesh",
-    "create_xarray",
+    # Waves
+    "frequency_limits",
+    "clsquare_s",
+    "wave_number",
+    "calculate_wave_reflection",
+    "closure_depth",
+    "zero_cross",
+    "storm_surge_from_waves",
+    # Coastal processes
     "slopes",
-    "save_db",
-    "clean",
-    # Compute - Sediment transport
+    "bed_slope",
+    "kobayashi_transport",
     "sediment_transport_Kobayashi",
     "sediment_transport_CERC",
-    # Compute - Model execution
-    "nesting",
-    "run_swan",
-    "run_copla",
-    "run_cshore",
-    "run_coastalme",
-    # Compute - Coastal morphology
     "equilibrium_plan_shape",
     "coastline_evolution",
-    # Compute - Hydrology
+    "flood_fill",
+    # Hydrology
     "precipitation_to_flow",
     "wet_soil",
     "dry_soil",
@@ -111,26 +89,15 @@ __all__ = [
     "cumulative_by_events",
     "hydraulic_radius",
     "water_elevation",
-    "settling_velocity",
     "river_sediment_transport",
-    "storm_surge_from_waves",
-    "flood_fill",
-    # Compute - Physical properties
-    "EOS_sea_water",
-    "bulk_fluid_density",
-    # Waves
-    "frequency_limits",
-    "clsquare_s",
-    "wave_number",
-    "calculate_wave_reflection",
-    "closure_depth",
+    # Physical properties
     "fall_velocity",
     "density",
     "kinematic_viscosity",
-    "zero_cross",
-    # Write
-    "write_cshore",
-    "write_swan",
-    "write_copla",
-    "directory",
+    "settling_velocity",
+    "EOS_sea_water",
+    "bulk_fluid_density",
 ]
+
+# Moved to environmentaltools.models (deprecated aliases)
+__getattr__ = moved(__name__, {**LOAD, **WRITE, **COMPUTE})

@@ -5,6 +5,27 @@ All relevant project updates are documented here:
 ## [Unreleased]
 ### Added
 - new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
+- `models.delft3d` (raw outputs, NEFIS `.dat` extraction, grid and wave field plots), `models.cshore`, `models.coastalme` and `models.swan_copla` (SWAN → COPLA → Kobayashi workflow) (potinar)
+- `processes.kobayashi_transport`: Kobayashi et al. (2008) transport as a pure function of the 2-D fields, following the implementation of CSHORE (`SEDTRA`, oblique waves) in a frame aligned with the local waves (potinar)
+- "which model to use" guide in the docs and docstrings of `models` (potinar)
+- `processes.bed_slope`: bed slope components on regular, rotated or curvilinear grids (potinar)
+- `models.barrier`: BARRIER 1-D estuarine model for any channel: cases from a base case with config and along-channel parameter changes (constant, interpolated, stepwise, Gaussian-smoothed), boundary and tributary files, cross-section monotonicity check and fix, optional YAML project with variants, resumable runner, NetCDF reader with dates and distance to the mouth, series at points, tidal mean, comparison of runs and figures; validated against the Guadalquivir calibration of M. Cobos (potinar)
+
+### Changed
+- model readers/writers/runners moved from `common`, `processes` and `graphics` to `models`; the old names are deprecated aliases (removal in 4.0) (potinar)
+- `processes` split by topic: `waves`, `coastal`, `hydrology`, `properties` (`processes.compute` kept for compatibility) (potinar)
+- Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)
+
+### Fixed
+- `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
+- `read_copla` discarded the `grid` passed to it (potinar)
+- `kobayashi_transport` works in a local cross-shore frame (normal to the isobaths, in the sense of the waves), as CSHORE; it takes the bed slope components `Sbx`, `Sby`; validated against CSHORE runs (example in 12_TESTs/cshore_perfil_simple) (potinar)
+- `cshore.write_input` followed neither the number of title lines nor the conditional lines of CSHORE (`IWTRAN`, `IPOND`, `INFILT`, `SLPOT`, `RWH`) and glued values to labels; `cshore.read_output` read only the first output block and mislabelled `OYMOME`; it now returns every time step (`time` argument) with plain column names (potinar)
+- Kobayashi transport compared with CSHORE: current normalized by the orbital velocity σT (was not), σT from the local Hrms (was the boundary Hs), breaker height (extra division by the wavelength), breaking dissipation coefficient ≥ 1, `Ps <= Pb`, bottom friction dissipation `(fb/2)·GF·σT³` (was `0.5·g·fb·U³`), breaking instead of breaking minus roller dissipation, bedload factor `(0.5 + Qb)`, bounded slope function, transport across the waves; results change (potinar)
+- `hydraulic_radius` failed (undefined `df`); trapezoidal, triangular, circular and parabolic sections used the rectangular formulas. `water_elevation` uses the same geometries (potinar)
+- `river_sediment_transport`: Yang failed (undefined `h`, wrong mask, second term dropped, natural instead of common logarithms, no result); Brownlie gave NaN (sign of the exponent of the critical Shields parameter, `np.std` of the diameters instead of `sigma_g`, no zero below the critical velocity) and accepts `"brownlie"`; Wilcock-Crowe ignored a given `Fs`, divided instead of multiplied to get the reference shear stress and skipped the last size class; `.loc` instead of chained assignment (silently ignored with pandas copy-on-write) (potinar)
+- `settling_velocity` with `Wu_Wang` failed (undefined `d`, `d_ast`) (potinar)
+- `coastline_evolution` called the non-existent `utils.nearest` (potinar)
 
 ## [3.2.7] - 2026-04-29
 ### Added

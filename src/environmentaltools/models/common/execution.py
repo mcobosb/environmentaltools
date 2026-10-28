@@ -73,6 +73,30 @@ def run_process(cmd, cwd, env=None, log_file=None, timeout=None):
             out.close()
 
 
+def run_executable(executable, working_directory, model="model", download=None):
+    """Run a model executable in ``working_directory`` and wait for it to finish.
+
+    Args:
+        executable (str | Path): Path to the executable.
+        working_directory (str | Path): Folder with the model input files.
+        model (str): Model name used in the error message.
+        download (str | None): Where to get the model, added to the error message.
+
+    Returns:
+        int: Return code of the process.
+
+    Raises:
+        FileNotFoundError: If ``executable`` does not exist.
+    """
+    if not os.path.isfile(executable):
+        hint = f"Please download {model} from: {download}\n" if download else ""
+        raise FileNotFoundError(
+            f"{model} executable not found at: {executable}\n{hint}"
+            f"Provide the correct path to the {model} executable."
+        )
+    return subprocess.run(str(executable), cwd=working_directory).returncode
+
+
 def describe_return_code(rc):
     """Readable Windows status codes (e.g. missing or conflicting DLLs)."""
     if not isinstance(rc, int) or rc == 0:

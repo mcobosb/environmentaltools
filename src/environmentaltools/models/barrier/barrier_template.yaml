@@ -1,0 +1,33 @@
+# BARRIER project template (environmentaltools.models.barrier)
+# Relative paths are resolved against the folder of this file.
+# Workflow:  project = barrier.load_project("barrier.yaml"); barrier.prepare(project); barrier.run(project)
+
+executable: null          # BARRIER executable; null → environment variable BARRIER_EXE, else 'barrier' on the PATH
+base_case: base           # case folder used as starting point: BARRIER's config.yaml + the CSV files it names
+cases_dir: cases          # one folder per variant (+ cases.csv, the manifest)
+results_dir: results      # one folder per variant: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
+timeout_hours: null       # maximum run time per case
+
+# Each variant is a copy of base_case with optional changes:
+#   config:        merged into config.yaml (same structure as BARRIER's config)
+#   along_channel: {column: changes} of along_channel_data (see barrier.set_section_parameter):
+#                    value: 0.03                      constant
+#                    points: [[x, value], ...]        linear interpolation (x in m from the upstream boundary)
+#                    steps: [[x_from, value], ...]    piecewise constant
+#                    sigma: 50                        Gaussian smoothing (in number of sections), alone or after the above
+#                    scale: 1.1 / add: 0.002          applied to the result (or to the current profile)
+#   files:         {name in the case: source file}  replaces input files (e.g. another tide or discharge series)
+variants:
+  reference: {}
+  courant_02:
+    config:
+      hydrodynamics: {courant_number: 0.2}
+  rough:
+    along_channel:
+      nmann: {scale: 1.1}
+  kh_profile:
+    along_channel:
+      kh: {points: [[0, 10], [20000, 50], [50000, 100], [70000, 300], [95000, 500]], sigma: 50}
+  # tide_2010:
+  #   config: {run: {start_date: "2010-01-01T00:00:00", end_date: "2010-03-01T00:00:00"}}
+  #   files: {tides.csv: inputs/tides_2010.csv, dam_discharge.csv: inputs/discharge_2010.csv}

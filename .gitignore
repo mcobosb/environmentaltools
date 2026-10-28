@@ -212,3 +212,5 @@ src/environmentaltools/processes/models/
 
 # Tidal model data files (large datasets)
 src/environmentaltools/data/spectral/tidal/EOT20/
+# macOS
+.DS_Store

@@ -67,34 +67,9 @@ Functions for saving processed data to various formats.
 Model I/O
 ---------
 
-load module
-~~~~~~~~~~~
-
-Functions for loading model outputs and configurations.
-
-.. autosummary::
-   :toctree: _autosummary
-
-   create_mesh_dictionary
-   cshore_config
-   read_cshore
-   read_copla
-   read_swan
-   delft_raw_files_point
-   delft_raw_files
-
-write module
-~~~~~~~~~~~~
-
-Functions for writing input files for numerical models (SWAN, CSHORE, COPLA).
-
-.. autosummary::
-   :toctree: _autosummary
-
-   write_cshore_input
-   write_swan_input
-   write_copla_input
-   create_project_directory
+The readers and writers of model files (SWAN, COPLA, CSHORE, Delft3D) moved to
+:doc:`models`. The old names (``environmentaltools.common.read_swan``, ...) still
+work but are deprecated and will be removed in version 4.0.
 
 Statistical Utilities
 ---------------------
