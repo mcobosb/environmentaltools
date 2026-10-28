@@ -33,6 +33,11 @@ Which model to use
      - 1-D: each profile is solved independently assuming an alongshore
        uniform beach (∂/∂y = 0); no refraction/diffraction in plan, structures
        or circulation cells.
+   * - BARRIER (:mod:`~environmentaltools.models.barrier`)
+     - Tidal propagation and salt intrusion along an estuary or tidal river
+       (1-D, cross-section averaged), over weeks to years.
+     - No lateral or vertical structure (stratification, secondary
+       currents); the channel is described by cross-section tables.
 
 Both approaches are complementary. The sediment transport formula of
 Kobayashi et al. (2008) used in SWAN → COPLA
@@ -115,6 +120,64 @@ sediment transport of Kobayashi et al. (2008)
    read_copla
    save_db
    clean
+
+BARRIER
+-------
+
+BARRIER (https://github.com/mcobosb/Barrier) is the 1-D estuarine model of
+M. Cobos. A case is a folder with BARRIER's ``config.yaml`` and the CSV files
+it names; section ``x = 0`` is the upstream boundary and the last section is the
+mouth, so the functions work for any channel::
+
+    from environmentaltools.models import barrier
+
+    barrier.create_case("run_002", "run_001", config={"hydrodynamics": {"courant_number": 0.2}},
+                        along_channel={"nmann": {"scale": 1.1}})
+    nc = barrier.run_case("run_002", "outputs/run_002")      # executable: BARRIER_EXE or PATH
+    ds = barrier.read_output(nc)                             # 'date' and 'km' (to the mouth)
+    points, series = barrier.extract_points(ds, {"Mouth": 0, "Gauge": 50})
+    barrier.plot_along_channel(ds, "S", points, file_name="salt_intrusion.png")
+
+Batches of variants of a base case go in a project file (start from
+``environmentaltools/models/barrier/barrier_template.yaml``):
+``load_project`` → ``prepare`` → ``run`` → ``read_project``.
+
+Building the geometry (``cross-sections.csv``, ``along_channel_data.csv``)
+from a channel axis and a DEM is not covered yet.
+
+Input files are written with every digit: rounding the geometry or the
+along-channel data to 10 significant digits changes the water level by
+decimetres.
+
+.. currentmodule:: environmentaltools.models.barrier
+
+.. autosummary::
+   :toctree: _autosummary
+
+   create_case
+   load_project
+   prepare
+   run
+   run_case
+   read_config
+   input_files
+   read_csv
+   write_csv
+   write_series
+   write_tributaries
+   section_profile
+   set_section_parameter
+   check_cross_sections
+   fix_cross_sections
+   read_output
+   read_project
+   extract_points
+   tidal_mean
+   compare
+   plot_point_series
+   plot_along_channel
+   plot_comparison
+   plot_section_parameters
 
 Delft3D
 -------

@@ -4,6 +4,7 @@ Submodules:
     common      Structured grids (Delft3D .grd/.dep, regular grids) and process execution.
     swan        SWAN projects driven by a YAML file: prepare → run → read.
     swan_copla  Coupled SWAN → COPLA → Kobayashi workflow on regular grids.
+    barrier     BARRIER 1-D estuarine model: cases, runs, results and figures.
     delft3d     Delft3D outputs (raw exports, DELFT3D-WAVE NEFIS .dat) and figures.
     cshore      CSHORE cross-shore profile model.
     coastalme   CoastalME coastal morphology model.
@@ -17,8 +18,10 @@ Which model to use:
                 and the bed is not updated.
     cshore      Cross-shore profile (1-D, alongshore uniform beach): surf and swash
                 zone, undertow, runup, overtopping and profile change during storms.
+    barrier     Tide and salt intrusion along an estuary or tidal river (1-D,
+                cross-section averaged): no lateral or vertical structure.
 """
 
-from . import coastalme, common, cshore, delft3d, swan, swan_copla
+from . import barrier, coastalme, common, cshore, delft3d, swan, swan_copla
 
-__all__ = ["common", "swan", "swan_copla", "delft3d", "cshore", "coastalme"]
+__all__ = ["common", "swan", "swan_copla", "delft3d", "cshore", "coastalme", "barrier"]
