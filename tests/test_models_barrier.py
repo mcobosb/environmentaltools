@@ -193,6 +193,7 @@ def test_plots(tmp_path, base_case):
     barrier.plot_point_series(series["eta"], "level (m)", "t", file_name=tmp_path / "p.png")
     barrier.plot_along_channel(ds, "S", points, file_name=tmp_path / "a.png")
     barrier.plot_comparison(ds, ds, stations_km=[0, 5], file_name=tmp_path / "c.png")
+    barrier.plot_comparison(ds, ds, stations_km=[0, 5], window_hours=None, file_name=tmp_path / "c_raw.png")
     barrier.plot_section_parameters(barrier.read_csv(base_case / "along_channel_data.csv"),
                                     file_name=tmp_path / "s.png")
     assert all((tmp_path / f).exists() for f in ("p.png", "a.png", "c.png", "s.png"))
