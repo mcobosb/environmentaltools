@@ -2187,7 +2187,7 @@ def cdf(df: pd.DataFrame, param: dict, ppf: bool = False):
 
     t_expans = params_t_expansion(param["mode"], param, df["n"])
     if not any(df.columns == "prob"):
-        df["prob"] = 0
+        df["prob"] = 0.0
 
     if param["reduction"]:
         # Reduction allowed
