@@ -74,10 +74,10 @@ def postprocess(cfg, force=False, verbose=True):
     for case in maps.get("cases") or []:
         f = out / "maps" / f"{case}.png"
         if case not in finished:
-            rows.append({"output": f"maps/{f.name}", "status": "no result"})
+            rows.append({"output": f"maps/{case}.png", "status": "no result"})
             continue
         if not force and is_up_to_date(f, [cfg.results_dir / case / "done.json", cfg.file]):
-            rows.append({"output": f"maps/{f.name}", "status": "up to date"})
+            rows.append({"output": f"maps/{case}.png", "status": "up to date"})
             continue
         try:
             import matplotlib
@@ -89,9 +89,9 @@ def postprocess(cfg, force=False, verbose=True):
             f.parent.mkdir(parents=True, exist_ok=True)
             plot_case_maps(cfg, case, quantity=maps.get("quantity"), file_name=f)
             plt.close("all")
-            rows.append({"output": f"maps/{f.name}", "status": "written"})
+            rows.append({"output": f"maps/{case}.png", "status": "written"})
         except FileNotFoundError as exc:      # maps kept only on the computing machine (store: archive)
-            rows.append({"output": f"maps/{f.name}", "status": f"map not here: {exc}"[:120]})
+            rows.append({"output": f"maps/{case}.png", "status": f"map not here: {exc}"[:120]})
     df = pd.DataFrame(rows)
     if verbose:
         print(df.to_string(index=False))
