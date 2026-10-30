@@ -35,7 +35,7 @@ from .run import run, swan_executable
 from .read import (quantity_columns, read_map, read_points, read_print, read_spectra, read_spectra_case,
                    spectrum_parameters,
                    read_table, summary)
-from .plot import plot_case_maps, plot_grids, plot_map, plot_wave_field
+from .plot import inspect_grids, plot_case_maps, plot_grids, plot_map, plot_wave_field
 from .postprocess import postprocess
 
 TEMPLATE = Path(__file__).with_name("swan_template.yaml")
@@ -47,5 +47,5 @@ __all__ = [
     "run", "swan_executable",
     "quantity_columns", "read_map", "read_points", "read_print", "read_spectra", "read_spectra_case", "spectrum_parameters",
     "read_table", "summary",
-    "plot_case_maps", "plot_grids", "plot_map", "plot_wave_field",
+    "inspect_grids", "plot_case_maps", "plot_grids", "plot_map", "plot_wave_field",
 ]

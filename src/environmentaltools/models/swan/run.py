@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..common.execution import describe_return_code, library_environment, run_process
-from .cases import COMMON
+from .cases import COMMON, case_folders
 
 EXECUTABLES = ["swan_omp.exe", "swan.exe", "swan_omp", "swan"]
 
@@ -34,7 +34,7 @@ def is_done(cfg, case):
     return (cfg.results_dir / case / "done.json").exists()
 
 
-def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
+def run(cfg, filter=None, cases=None, threads=None, force=False, variants=None, verbose=True):
     """Run the prepared cases that are not finished yet.
 
     For each case: copy the case and the ``_common`` files to ``run_dir`` (local
@@ -45,7 +45,8 @@ def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
     files kept only on the computing machine). With ``outputs: figures:``, a PNG of
     every saved map is drawn on the computing machine and copied to the results.
     A ``done.json`` marks finished cases; ``results_dir/run_log.csv`` keeps one
-    line per case.
+    line per case. With variants, only the cases of the active variants
+    (``active_variants`` of the project file, or ``variants``) are run.
 
     Args:
         cfg (SwanConfig): Configuration.
@@ -53,6 +54,7 @@ def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
         cases (list[str] | None): Run only these cases.
         threads (int | None): OpenMP threads (default: ``threads`` of the YAML or all cores).
         force (bool): Run again cases that are already finished (``done.json`` is replaced).
+        variants (list[str] | None): Run only the cases of these variants (default: the active ones).
 
     Returns:
         pd.DataFrame: Log of this execution.
@@ -62,7 +64,13 @@ def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
     root, res_root = cfg.cases_dir, cfg.results_dir
     run_root = cfg.path(cfg["run_dir"]) if cfg["run_dir"] else res_root.parent / "_run"
     timeout = cfg["timeout_hours"] * 3600 if cfg["timeout_hours"] else None
-    todo = sorted(d.name for d in root.iterdir() if d.is_dir() and d.name != COMMON and (d / "case.json").exists())
+    todo = case_folders(root)
+    if cfg["variants"]:                                  # only the active variants (or those asked for)
+        keep = set(variants or cfg.variant_names)
+        unknown = keep - set(map(str, cfg["variants"]))
+        if unknown:
+            raise ValueError(f"Unknown variants {sorted(unknown)} (known: {list(cfg['variants'])})")
+        todo = [c for c in todo if "/" in c and c.split("/")[0] in keep]
     if filter:
         todo = [c for c in todo if filter in c]
     if cases:
@@ -121,7 +129,7 @@ def run(cfg, filter=None, cases=None, threads=None, force=False, verbose=True):
                 from .plot import plot_case_maps
                 import matplotlib
                 matplotlib.use("Agg")
-                plot_case_maps(cfg, case, folder=wd, file_name=res / f"maps_{case}.png")
+                plot_case_maps(cfg, case, folder=wd, file_name=res / f"maps_{case.replace('/', '_')}.png")
             except Exception as exc:                            # a figure never stops the batch
                 row["figure_error"] = str(exc)[:200]
         row["ok"] = ok

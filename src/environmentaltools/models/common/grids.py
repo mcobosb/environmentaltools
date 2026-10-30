@@ -208,6 +208,58 @@ class Grid:
         xs, ys = self.x[j, i], self.y[j, i]
         return np.r_[0, np.cumsum(np.hypot(np.diff(xs), np.diff(ys)))]
 
+    def sides(self):
+        """The four sides of the grid as node indices, each in increasing index order.
+
+        Returns:
+            dict: ``{"i = 0": (j, i), "i = <nx-1>": …, "j = 0": …, "j = <ny-1>": …}``.
+        """
+        ny, nx = self.shape
+        return {"i = 0": (np.arange(ny), np.zeros(ny, int)),
+                f"i = {nx - 1}": (np.arange(ny), np.full(ny, nx - 1)),
+                "j = 0": (np.zeros(nx, int), np.arange(nx)),
+                f"j = {ny - 1}": (np.full(nx, ny - 1), np.arange(nx))}
+
+    def boundary_stretches(self, depmin=0.05):
+        """Stretches of water along the sides of the grid: candidates for the open-sea boundary.
+
+        Each side is split into runs of consecutive wet nodes (depth > ``depmin``). A long, deep
+        stretch is open sea (to be forced); short or shallow ones are usually coast, river mouths
+        or harbours.
+
+        Args:
+            depmin (float): Minimum depth of a wet node (m).
+
+        Returns:
+            pd.DataFrame: One row per stretch: ``side``, ``segment_ij`` (``[i1, j1, i2, j2]``, ready for
+            ``boundaries: - segment_ij:`` of SWAN), ``nodes``, ``side_nodes``, ``depth_min``,
+            ``depth_mean``, ``depth_max`` (m), ``length_km``, ``x_start``, ``y_start``, ``x_end``, ``y_end``.
+        """
+        import pandas as pd
+
+        if self.depth is None:
+            raise ValueError(f"Grid '{self.name}' has no depth")
+        rows = []
+        for side, (j, i) in self.sides().items():
+            d = self.depth[j, i]
+            wet = np.isfinite(self.x[j, i]) & np.isfinite(d) & (d > depmin)
+            edges = np.flatnonzero(np.diff(np.r_[0, wet.astype(int), 0]))
+            for a, b in zip(edges[::2], edges[1::2] - 1):
+                jj, ii = j[a:b + 1], i[a:b + 1]
+                dd = d[a:b + 1]
+                rows.append({"grid": self.name, "side": side,
+                             "segment_ij": [int(i[a]), int(j[a]), int(i[b]), int(j[b])],
+                             "nodes": int(b - a + 1), "side_nodes": len(j),
+                             "depth_min": round(float(dd.min()), 1), "depth_mean": round(float(dd.mean()), 1),
+                             "depth_max": round(float(dd.max()), 1),
+                             "length_km": round(float(self.distance_along(jj, ii)[-1]) / 1000.0, 2),
+                             "x_start": float(self.x[j[a], i[a]]), "y_start": float(self.y[j[a], i[a]]),
+                             "x_end": float(self.x[j[b], i[b]]), "y_end": float(self.y[j[b], i[b]])})
+        cols = ["grid", "side", "segment_ij", "nodes", "side_nodes", "depth_min", "depth_mean", "depth_max",
+                "length_km", "x_start", "y_start", "x_end", "y_end"]
+        return pd.DataFrame(rows, columns=cols).sort_values(["nodes", "depth_mean"], ascending=False,
+                                                            ignore_index=True)
+
     def contains(self, x, y):
         """True if the point lies inside the outline of the grid."""
         from matplotlib.path import Path as MplPath

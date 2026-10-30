@@ -46,9 +46,24 @@ def load_states(cfg, states=None):
 
 
 def case_names(cfg, states):
-    """List of ``(case, state_id, variant)``."""
-    variants = list(cfg["variants"]) or [None]
-    return [(sid if v is None else f"{sid}_{v}", sid, v) for sid in states.index for v in variants]
+    """List of ``(case, state_id, variant)``: ``<variant>/<state>`` (one folder per active variant) or, without
+    variants, ``<state>``."""
+    variants = cfg.variant_names or [None]
+    return [(sid if v is None else f"{v}/{sid}", sid, v) for v in variants for sid in states.index]
+
+
+def case_folders(root, marker="case.json"):
+    """Case names (``<state>`` or ``<variant>/<state>``) of the folders of ``root`` that contain ``marker``."""
+    root = Path(root)
+    if not root.exists():
+        return []
+    out = []
+    for d in sorted(p for p in root.iterdir() if p.is_dir() and p.name != COMMON):
+        if (d / marker).exists():
+            out.append(d.name)
+        else:
+            out += [f"{d.name}/{s.name}" for s in sorted(d.iterdir()) if s.is_dir() and (s / marker).exists()]
+    return out
 
 
 def _same(path, text):
@@ -124,12 +139,14 @@ def prepare(cfg, states=None, overwrite=False, overview=True, verbose=True):
         for f in tmp.iterdir():
             if f.name in changed_common or overwrite:
                 shutil.copy2(f, common / f.name)
-    existing_cases = any(d.is_dir() and d.name != COMMON for d in root.iterdir())
+    existing_cases = bool(case_folders(root))
     if changed_common and existing_cases and verbose:
         print(f"Grid/point files changed ({', '.join(sorted(changed_common))}): every case is updated")
 
     rows = []
-    for k, (case, sid, var) in enumerate(case_names(cfg, states), 1):
+    position = {sid: n for n, sid in enumerate(states.index, 1)}     # run number of SWAN: the row of the state
+    for case, sid, var in case_names(cfg, states):
+        k = position[sid]
         c = cfg.variant(var)
         d = root / case
         st = {k_: (None if pd.isna(v) else float(v)) for k_, v in states.loc[sid].items()
@@ -166,10 +183,10 @@ def prepare(cfg, states=None, overwrite=False, overview=True, verbose=True):
     man = pd.DataFrame(rows).merge(states, left_on="state", right_index=True, how="left")
     man.to_csv(root / "cases.csv", index=False)
     listed = set(man["case"])
-    others = sorted(p.name for p in root.iterdir() if p.is_dir() and p.name != COMMON and p.name not in listed)
+    others = [c for c in case_folders(root) if c not in listed]
     if verbose:
         counts = man["status"].value_counts().to_dict()
-        print(f"{len(man)} cases in {root} ({len(states)} states × {len(cfg['variants']) or 1} variants; "
+        print(f"{len(man)} cases in {root} ({len(states)} states × {len(cfg.variant_names) or 1} variants; "
               f"grids: {' → '.join(cfg.grid_names)}): "
               + ", ".join(f"{counts.get(s, 0)} {s}" for s in ("created", "updated", "kept")))
         if counts.get("updated"):
@@ -206,22 +223,22 @@ def write_overview(cfg, manifest=None, file_name=None):
                                for c in cases["case"]])
     sections = ["spectral_grid", "set", "boundary_spectrum", "physics", "numerics", "outputs"]
     flat = {"base": flatten({k: cfg[k] for k in sections})}
-    for v in cfg["variants"]:
+    for v in cfg.variant_names:
         flat[v] = flatten({k: cfg.variant(v)[k] for k in sections})
     keys = list(dict.fromkeys(k for f in flat.values() for k in f))
     variants = pd.DataFrame({"parameter": keys, **{n: [str(f.get(k, "")) for k in keys] for n, f in flat.items()}})
     grids = pd.DataFrame([{"grid": g, "nested_in": cfg["grids"][g].get("nested_in") or "",
                            "nodes": "x".join(map(str, cfg.grids()[g].shape)),
                            "source": cfg["grids"][g].get("grd") or "regular"} for g in cfg.grid_names])
-    names = list(cfg["variants"])
+    names = cfg.variant_names
     return write_tables(file_name or cfg.overview_file, {"cases": cases, "variants": variants, "grids": grids},
                         highlight={"variants": ("base", names[0])} if names else None, legend={
-        "sheet cases": "One row per case (sea state × variant)",
+        "sheet cases": "One row per case (sea state × active variant); its folder is <variant>/<state>",
         "status": "What the last prepare did: created (new), updated (its state, variant or the grids changed: its "
                   "result is pending again) or kept (unchanged)",
         "result": "done: finished (done.json in results_dir); pending: run will run it",
-        "sheet variants": "Every value of the configuration a variant can change: base and variants side by side. "
-                          "In orange, what a variant changes",
+        "sheet variants": "Every value of the configuration a variant can change: base and active variants side by "
+                          "side. In orange, what a variant changes",
         "sheet grids": "Grids in computation order",
         "states": f"Sea states: {cfg['states'].get('file')}",
         "variants table": f"{cfg.variants_file}" if cfg.variants_file else "variants of the project file",

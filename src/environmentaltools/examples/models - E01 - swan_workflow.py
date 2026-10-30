@@ -27,6 +27,10 @@ import matplotlib
 matplotlib.use("Agg")
 from environmentaltools.models import swan  # noqa: E402
 
+# 0. GRIDS (once, before writing the boundaries): with only the grids in swan.yaml, draw them and list the stretches
+#    of water along their sides; copy the segment_ij of the open sea (longest, deepest) to boundaries
+print(swan.inspect_grids("swan.yaml", points="points.csv", file_name="grid_sides.png", table_file="grid_sides.xlsx"))
+
 cfg = swan.load_config("swan.yaml")
 
 # grids, forced boundaries and output points (check them once)

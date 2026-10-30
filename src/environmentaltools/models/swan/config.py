@@ -16,7 +16,8 @@ The variants can also be a table (``variants_file``, Excel or csv): one row per
 variant (column ``variant``) and one column per changed key written with dots
 (``physics.wcap``, ``boundary_spectrum.spreading_value``…); an empty cell keeps the
 base value and ``off`` removes a command. The cases are every sea state of the
-states table (``states: file``) × every variant.
+states table (``states: file``) × every active variant (``active_variants``, all by
+default), in one folder per variant: ``<variant>/<state>``.
 """
 
 import copy
@@ -74,6 +75,7 @@ DEFAULTS = {
     },
     "variants": {},
     "variants_file": None,
+    "active_variants": None,     # variants prepared and run (null → all); each one is a folder of cases
     "overview_file": None,
     "postprocess_dir": "postprocess",
     "postprocess": {
@@ -88,7 +90,7 @@ REMOVE = {"off", "null", "none", "remove"}
 def read_variants_table(file_name, sheet_name=None):
     """Read the variants table (xlsx or csv): one row per variant, one column per changed key.
 
-    Columns: ``variant`` (name; the cases are ``<state>_<variant>``), ``description`` or columns
+    Columns: ``variant`` (name; its cases go in the folder ``<variant>/<state>``), ``description`` or columns
     starting with ``_`` (free text) and any key of the project file written with dots, e.g.
     ``physics.wcap`` = ``WCAP KOMEN delta=1``, ``boundary_spectrum.spreading_value`` = 2,
     ``numerics.accur``. An empty cell keeps the base value; ``off`` removes a command.
@@ -164,6 +166,12 @@ class SwanConfig:
             return None
         p = Path(value).expanduser()
         return p if p.is_absolute() else (self.base_dir / p).resolve()
+
+    @property
+    def variant_names(self):
+        """Variants that are prepared and run: ``active_variants`` (all of them when it is null)."""
+        active = self.data.get("active_variants")
+        return list(self.data["variants"]) if active is None else [str(v) for v in active]
 
     @property
     def variants_file(self):
@@ -275,6 +283,9 @@ class SwanConfig:
                 raise ValueError(f"Map '{g}': store must be 'results' or 'archive'")
             if m.get("store") == "archive" and not d.get("archive_dir"):
                 raise ValueError(f"Map '{g}' has store: archive but there is no 'archive_dir'")
+        unknown = set(d.get("active_variants") or []) - set(map(str, d["variants"]))
+        if unknown:
+            raise ValueError(f"active_variants: unknown variants {sorted(unknown)} (known: {list(d['variants'])})")
         for v in d["variants"]:
             if "grids" in d["variants"][v]:
                 raise ValueError(f"Variant '{v}': changing grids is not supported; use another project")

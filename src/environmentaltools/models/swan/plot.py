@@ -1,5 +1,7 @@
 """Figures of a SWAN project: grids, boundaries and output points; result maps."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -199,3 +201,126 @@ def plot_case_maps(cfg, case, folder=None, quantity=None, file_name=None, dpi=No
         fig.savefig(file_name, dpi=dpi or fs.get("dpi", 120))
         plt.close(fig)
     return fig
+
+
+def _as_grids(grids):
+    """``{name: Grid | (grd, dep) | {"grd", "dep"}}``, a list of those or a :class:`SwanConfig` → ``{name: Grid}``."""
+    from ..common.grids import Grid
+
+    if hasattr(grids, "grids") and hasattr(grids, "grid_names"):          # SwanConfig
+        return grids.grids()
+    if isinstance(grids, (str, Path)) and Path(grids).suffix.lower() in (".yaml", ".yml"):
+        # project file still without boundaries: read its grids without validating it
+        import yaml
+
+        from .config import DEFAULTS, SwanConfig, deep_merge
+
+        cfg = SwanConfig.__new__(SwanConfig)
+        cfg.file = Path(grids).resolve()
+        cfg.base_dir = cfg.file.parent
+        cfg.data = deep_merge(DEFAULTS, yaml.safe_load(cfg.file.read_text(encoding="utf-8")) or {})
+        cfg._grids = None
+        return {name: cfg.load_grid(name) for name in cfg.data["grids"]}
+    if not isinstance(grids, dict):
+        grids = {f"grid{k + 1}": g for k, g in enumerate(grids)}
+    out = {}
+    for name, g in grids.items():
+        if isinstance(g, Grid):
+            out[name] = g
+        elif isinstance(g, dict):
+            out[name] = Grid.from_delft(g["grd"], g.get("dep"), name)
+        else:
+            out[name] = Grid.from_delft(g[0], g[1] if len(g) > 1 else None, name)
+    return out
+
+
+def inspect_grids(grids, points=None, depmin=0.05, file_name=None, table_file=None, verbose=True):
+    """Grids before writing the project file: which sides are open sea, to choose the boundaries.
+
+    Draws every grid (depth of the first one, outline of the others) with each stretch of water
+    along its sides as a thick line coloured by its mean depth and labelled with its side and its
+    ``segment_ij``, plus the output points; and lists those stretches
+    (:meth:`~environmentaltools.models.common.Grid.boundary_stretches`). The open-sea boundary is
+    usually the longest, deepest stretch; short or shallow ones are coast, harbours or river mouths.
+
+    Args:
+        grids (str | Path | dict | list | SwanConfig): The project file (its ``grids`` section is enough:
+            ``boundaries`` can still be missing), ``{name: (grd, dep)}`` (Delft3D/RGFGRID files),
+            ``{name: Grid}`` or a loaded configuration.
+        points (str | Path | pd.DataFrame | None): Points (columns ``name``, ``x``, ``y``) drawn on top.
+        depmin (float): Minimum depth of a wet node (m).
+        file_name (str | Path | None): Save the figure here.
+        table_file (str | Path | None): Save the table of stretches here (Excel).
+        verbose (bool): Print which grids were read and from which files.
+
+    Returns:
+        pd.DataFrame: Stretches of water along the sides of every grid.
+    """
+    from matplotlib.colors import Normalize
+
+    gs = _as_grids(grids)
+    if verbose:
+        where = f" from {grids}" if isinstance(grids, (str, Path)) else ""
+        print(f"{len(gs)} grid(s){where}:")
+        for name, g in gs.items():
+            src = g.source or {}
+            files = " + ".join(Path(f).name for f in (src.get("grd"), src.get("dep")) if f) or g.kind
+            folder = f"  ({Path(src['grd']).parent})" if src.get("grd") else ""
+            print(f"  {name}: {files}, {g.shape[1]} × {g.shape[0]} nodes (i × j){folder}")
+    table = pd.concat([g.boundary_stretches(depmin) for g in gs.values()], ignore_index=True)
+    first = next(iter(gs.values()))
+    w, h = np.nanmax(first.x) - np.nanmin(first.x), np.nanmax(first.y) - np.nanmin(first.y)
+    fig, ax = plt.subplots(figsize=(11, min(14, max(6, 11 * h / w + 3))))
+    pc = ax.pcolormesh(first.x, first.y, np.where(first.depth > depmin, first.depth, np.nan), cmap="Blues",
+                       shading="auto")
+    fig.colorbar(pc, ax=ax, label=f"depth of '{first.name}' (m)", orientation="horizontal", fraction=0.04, pad=0.08)
+    norm = Normalize(0, max(1.0, float(table["depth_max"].max())) if len(table) else 1.0)
+    cmap = plt.get_cmap("plasma_r")
+    for k, (name, g) in enumerate(gs.items()):
+        j, i = g.perimeter()
+        ax.plot(np.r_[g.x[j, i], g.x[0, 0]], np.r_[g.y[j, i], g.y[0, 0]], color="0.35", lw=0.8)
+        for r in table[table["grid"] == name].itertuples():
+            i1, j1, i2, j2 = r.segment_ij                   # sides run in increasing index order
+            jj, ii = g.sides()[r.side]
+            sel = slice(j1, j2 + 1) if r.side.startswith("i") else slice(i1, i2 + 1)
+            jj, ii = jj[sel], ii[sel]
+            ax.plot(g.x[jj, ii], g.y[jj, ii], color=cmap(norm(r.depth_mean)), lw=4, solid_capstyle="butt")
+            m = len(jj) // 2
+            xm, ym = g.x[jj[m], ii[m]], g.y[jj[m], ii[m]]
+            u = np.array([np.nanmean(g.x) - xm, np.nanmean(g.y) - ym])      # label towards the inside of the grid
+            u = 45 * u / (np.hypot(*u) or 1)
+            ax.annotate(f"{name} · {r.side}\n{r.segment_ij}\n{r.depth_min:g}–{r.depth_max:g} m · {r.nodes} nodes",
+                        (xm, ym), fontsize=7, xytext=tuple(u), textcoords="offset points",
+                        ha="left" if u[0] >= 0 else "right", va="bottom" if u[1] >= 0 else "top",
+                        arrowprops=dict(arrowstyle="-", color="0.4", lw=0.6),
+                        bbox=dict(facecolor="white", edgecolor="0.6", alpha=0.85, pad=1.5))
+        ax.annotate(f"{name} (0, 0)", (g.x[0, 0], g.y[0, 0]), fontsize=7, color="0.3")
+    if points is not None:
+        p = pd.read_csv(points) if isinstance(points, (str, Path)) else pd.DataFrame(points)
+        ax.plot(p.x, p.y, "k^", ms=6)
+        for r in p.itertuples():
+            ax.annotate(getattr(r, "name", ""), (r.x, r.y), fontsize=8, xytext=(3, -9), textcoords="offset points")
+    fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, label="mean depth of the stretch (m)",
+                 orientation="horizontal", fraction=0.04, pad=0.12)
+    ax.set_aspect("equal")
+    _km_axes(ax)
+    ax.set_title("Stretches of water along the grid sides (candidates for the open-sea boundary)", fontsize=10)
+    fig.tight_layout()
+    if file_name:
+        fig.savefig(file_name, dpi=150)
+    if table_file:
+        from ..common.tables import write_tables
+
+        t = table.copy()
+        t["segment_ij"] = t["segment_ij"].astype(str)
+        write_tables(table_file, {"stretches": t}, legend={
+            "use": "Stretches of consecutive wet nodes along each side of each grid. The open-sea boundary is usually "
+                   "the longest, deepest stretch: copy its segment_ij to boundaries: - segment_ij: of the project file",
+            "side": "Side of the grid: i = 0 / i = max (columns), j = 0 / j = max (rows); (0, 0) is marked in the figure",
+            "segment_ij": "[i1, j1, i2, j2]: first and last node of the stretch (SWAN ix, iy)",
+            "nodes / side_nodes": "Wet nodes of the stretch / nodes of the whole side",
+            "depth_min, depth_mean, depth_max": f"Depth of the stretch (m); wet = depth > {depmin} m",
+            "length_km": "Length of the stretch",
+            "x_start … y_end": "Coordinates of its first and last node (those of the grid)",
+        })
+    return table

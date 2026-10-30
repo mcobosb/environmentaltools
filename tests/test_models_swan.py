@@ -54,7 +54,7 @@ def test_prepare_writes_cases(project):
     root = project.cases_dir
     common = root / "_common"
     assert (common / "nest_inner.pts").exists() and (common / "points.pts").exists()
-    s1 = (root / "1_S1" / "INPUT_1_outer").read_bytes().decode()
+    s1 = (root / "S1" / "1" / "INPUT_1_outer").read_bytes().decode()
     assert "\r\n" in s1
     s1 = s1.replace("\r\n", "\n")
     assert "CGRID REGULAR 0 0 0 10000 8000 20 16" in s1
@@ -63,11 +63,11 @@ def test_prepare_writes_cases(project):
     assert "WIND 0.01 260.00" in s1                       # min_wind
     assert "SPEC 'NEST1' SPEC2D ABS 'nest_inner.sp2'" in s1
     assert "WCAP KOMEN delta=0" in s1 and "SETUP" in s1
-    s0 = (root / "1_S0" / "INPUT_1_outer").read_text()
+    s0 = (root / "S0" / "1" / "INPUT_1_outer").read_text()
     assert "WCAP KOMEN delta=1" in s0 and "SETUP" not in s0
-    inner = (root / "2_S1" / "INPUT_2_inner").read_text()
+    inner = (root / "S1" / "2" / "INPUT_2_inner").read_text()
     assert "BOUN NEST 'nest_inner.sp2' CLOSED" in inner and "TABLE 'COMPGRID' NOHEAD 'map_inner.tab'" in inner
-    meta = json.loads((root / "2_S1" / "case.json").read_text())
+    meta = json.loads((root / "S1" / "2" / "case.json").read_text())
     assert [s["grid"] for s in meta["stages"]] == ["outer", "inner"]
 
 
@@ -184,8 +184,8 @@ def test_variants_table(project, tmp_path):
     assert cfg["variants"] == {"S1": {}, "S0": {"physics": {"wcap": "WCAP KOMEN delta=1", "setup": None}},
                                "D2": {"boundary_spectrum": {"spreading_value": 2}}}
     man = swan.prepare(cfg, verbose=False)
-    assert sorted(man["case"]) == ["1_D2", "1_S0", "1_S1", "2_D2", "2_S0", "2_S1"]
-    text = (cfg.cases_dir / "1_S0" / "INPUT_1_outer").read_text(encoding="latin-1")
+    assert sorted(man["case"]) == ["D2/1", "D2/2", "S0/1", "S0/2", "S1/1", "S1/2"]
+    text = (cfg.cases_dir / "S0" / "1" / "INPUT_1_outer").read_text(encoding="latin-1")
     assert "WCAP KOMEN delta=1" in text and "SETUP" not in text
     overview = pd.read_excel(cfg.overview_file, sheet_name=None)
     assert {"cases", "variants", "grids", "legend"} <= set(overview)
@@ -223,3 +223,53 @@ def test_executable_resolution(project, tmp_path, monkeypatch):
     monkeypatch.delenv("SWAN_EXE")
     with pytest.raises(FileNotFoundError):
         swan.swan_executable(swan.load_config(project.file, {"executable": str(tmp_path / "missing")}))
+
+
+def test_boundary_stretches_and_inspect_grids(project, tmp_path):
+    """Stretches of water along the grid sides, from a project file still without boundaries."""
+    from environmentaltools.models.common import Grid
+
+    g = Grid.regular_grid(0, 0, 0, 100, 100, 6, 5, "g")
+    g.depth = np.full(g.shape, 50.0)
+    g.depth[:, 0] = [0, 0, 5, 6, 0]                                   # side i = 0: a short shallow stretch
+    t = g.boundary_stretches()
+    deep = t[t.side == "i = 5"].iloc[0]
+    assert deep.segment_ij == [5, 0, 5, 4] and deep.nodes == 5 and deep.depth_mean == 50
+    shallow = t[t.side == "i = 0"].iloc[0]
+    assert shallow.segment_ij == [0, 2, 0, 3] and shallow.depth_max == 6
+
+    import yaml
+
+    raw = yaml.safe_load(project.file.read_text())
+    for grid in raw["grids"].values():
+        grid.pop("boundaries", None)
+    f = tmp_path / "no_boundaries.yaml"
+    f.write_text(yaml.safe_dump(raw))
+    table = swan.inspect_grids(f, points=tmp_path / "points.csv", file_name=tmp_path / "grids.png",
+                               table_file=tmp_path / "stretches.xlsx")
+    assert set(table.grid) == {"outer", "inner"} and (tmp_path / "grids.png").exists()
+    assert (tmp_path / "stretches.xlsx").exists()
+
+
+def test_active_variants(project, tmp_path):
+    """Only the active variants are prepared and run, each one in its own folder; switching a variant on or off
+    does not change the cases of the others."""
+    cfg = swan.load_config(project.file, {"executable": str(_fake_swan(tmp_path)), "active_variants": ["S1"],
+                                          "outputs": {"point_quantities": ["XP", "YP", "HSIGN"]}})
+    man = swan.prepare(cfg, verbose=False)
+    assert list(man["case"]) == ["S1/1", "S1/2"] and not (cfg.cases_dir / "S0").exists()
+    swan.run(cfg, verbose=False)
+    assert (cfg.results_dir / "S1" / "1" / "done.json").exists()
+    assert sorted(swan.read_points(cfg)["case"].unique()) == ["S1/1", "S1/2"]
+
+    cfg = swan.load_config(project.file, {"executable": str(_fake_swan(tmp_path)),
+                                          "outputs": {"point_quantities": ["XP", "YP", "HSIGN"]}})   # all variants
+    status = swan.prepare(cfg, verbose=False).set_index("case")["status"]
+    assert status["S1/1"] == "kept" and status["S0/1"] == "created"
+    assert [c for c in swan.run(cfg, variants=["S0"], verbose=False)["case"]] == ["S0/1", "S0/2"]
+    # a prepared variant that is no longer active is not run
+    cfg = swan.load_config(project.file, {"executable": str(_fake_swan(tmp_path)), "active_variants": ["S1"],
+                                          "outputs": {"point_quantities": ["XP", "YP", "HSIGN"]}})
+    assert len(swan.run(cfg, force=True, verbose=False)) == 2
+    with pytest.raises(ValueError):
+        swan.load_config(project.file, {"active_variants": ["nope"]})

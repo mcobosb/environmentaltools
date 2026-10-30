@@ -160,8 +160,9 @@ def spectrum_parameters(spec):
 
 # ------------------------------------------------------------------ projects
 def _cases(cfg, cases=None):
-    root = cfg.results_dir
-    names = sorted(d.name for d in root.iterdir() if (d / "done.json").exists()) if root.exists() else []
+    from .cases import case_folders
+
+    names = case_folders(cfg.results_dir, "done.json")
     return [c for c in names if c in set(cases)] if cases else names
 
 

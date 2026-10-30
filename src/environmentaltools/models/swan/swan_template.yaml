@@ -1,6 +1,10 @@
 # SWAN project template (environmentaltools.models.swan)
 # Relative paths are resolved against the folder of this file.
 #
+# Before the boundaries: with only the grids below, swan.inspect_grids("swan.yaml", points=..., file_name=...,
+# table_file=...) draws the grids and lists the stretches of water along their sides (side, segment_ij, depths):
+# the open-sea boundary is usually the longest, deepest stretch.
+#
 # Workflow (each step only does what is pending, so it can be run again at any time):
 #   python -m environmentaltools.models.swan prepare swan.yaml       create/update the cases → review cases_overview.xlsx
 #   python -m environmentaltools.models.swan run swan.yaml           run SWAN in the cases without result (Windows)
@@ -82,10 +86,11 @@ states:
   columns: {Hs: Hs, Tp: Tp, Dir: DirM, Vv: Vv, DirV: DirV, spreading: null, level: null}
   min_wind: 0.01               # wind speeds below this are raised to it (SWAN 41.51 fails with 0 m/s)
 
-# Optional variants: every state is run with each variant (case name <id>_<variant>). Best in a table:
+# Optional variants: every state is run with each active variant, one folder per variant (<variant>/<id>). Best in a table:
 variants_file: null            # e.g. variants.xlsx: column 'variant' + one column per changed key written with dots
                                # (physics.wcap, boundary_spectrum.spreading_value, numerics.accur…); empty cell = base
-                               # value; 'off' removes a command. Adding variants renames the cases (<id>_<variant>)
+                               # value; 'off' removes a command. Without variants the cases are just <id>
+active_variants: null          # variants prepared and run, e.g. [base, komen1] (null → all of them)
 variants: {}                   # or here (both can be used)
 #  S1: {}
 #  S0: {physics: {wcap: WCAP KOMEN delta=1}}

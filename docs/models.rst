@@ -54,7 +54,8 @@ changes: grids, boundaries, physics, numerics, outputs, folders and executable.
 What changes often goes in tables: the sea states (``states: file``, one row per
 state) and, optionally, the variants (``variants_file``: one row per variant, one
 column per changed key such as ``physics.wcap``). The cases are states ×
-variants::
+active variants (``active_variants``, all by default), one folder per variant
+(``<variant>/<state>``)::
 
     from environmentaltools.models import swan
 
@@ -67,6 +68,11 @@ or from the terminal: ``python -m environmentaltools.models.swan all swan.yaml``
 Each step only does what is pending: a case whose state or variant changed (or
 every case, if the grids changed) is written again and run again; the rest are
 kept. Example: ``examples/models - E01 - swan_workflow.py``.
+
+Before writing the boundaries, ``swan.inspect_grids("swan.yaml", …)`` (the
+``grids`` section is enough) draws the grids and lists the stretches of water
+along their sides with their ``segment_ij`` and depths: the open-sea boundary is
+usually the longest, deepest one.
 
 Features: curvilinear (Delft3D/RGFGRID ``.grd``/``.dep``) and regular grids,
 nesting as in Delft3D-WAVE (2-D spectra on the whole perimeter of the nested
@@ -85,6 +91,7 @@ states × variants, resumable execution on local disk, readers of tables,
    postprocess
    write_overview
    read_variants_table
+   inspect_grids
    read_points
    read_map
    read_table
