@@ -13,7 +13,6 @@ import pandas as pd
 from ..common.execution import describe_return_code, run_process
 
 
-
 def has_time_steps(nc):
     """True if the NetCDF ``nc`` can be opened and has at least one time step
     (BARRIER may end "successfully" without simulating, leaving an empty file)."""
@@ -45,12 +44,17 @@ def is_readable(nc):
 
 
 def barrier_executable(executable=None):
-    """BARRIER executable: ``executable``, else the environment variable ``BARRIER_EXE``, else ``barrier`` on the PATH.
+    """BARRIER executable: the environment variable ``BARRIER_EXE``, else ``executable``, else ``barrier`` on the PATH.
+
+    Args:
+        executable (str | Path | list | None): Path, or list of candidate paths (e.g. one per
+            computer: Mac and WSL); the first that exists is used.
 
     Raises:
         FileNotFoundError: If none exists.
     """
-    candidates = [executable, os.environ.get("BARRIER_EXE"), shutil.which("barrier")]
+    given = list(executable) if isinstance(executable, (list, tuple)) else [executable]
+    candidates = [os.environ.get("BARRIER_EXE"), *given, shutil.which("barrier")]
     for c in candidates:
         if c and Path(c).expanduser().exists():
             return Path(c).expanduser()
@@ -138,7 +142,7 @@ def run(project, cases=None, force=False, verbose=True):
     Returns:
         pd.DataFrame: Log of this execution.
     """
-    exe = barrier_executable(project.path(project["executable"]))
+    exe = barrier_executable(project.executable)
     timeout = project["timeout_hours"] * 3600 if project["timeout_hours"] else None
     todo = [c for c in project.case_names if (project.cases_dir / c / "config.yaml").exists()]
     if cases:
@@ -154,7 +158,7 @@ def run(project, cases=None, force=False, verbose=True):
         row = {"case": case, "start": datetime.now().isoformat(timespec="seconds")}
         t0 = time.time()
         try:
-            nc = run_case(project.cases_dir / case, res, exe, timeout, work_dir=project.path(project["work_dir"]),
+            nc = run_case(project.cases_dir / case, res, exe, timeout, work_dir=project.work_dir,
                           verbose=False)
             row.update(ok=True, output=nc.name)
             (res / "done.json").write_text(json.dumps({**row, "minutes": round((time.time() - t0) / 60, 2)},

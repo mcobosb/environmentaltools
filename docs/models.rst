@@ -125,22 +125,24 @@ BARRIER
 -------
 
 BARRIER (https://github.com/mcobosb/Barrier) is the 1-D estuarine model of
-M. Cobos. A case is a folder with BARRIER's ``config.yaml`` and the CSV files
-it names; section ``x = 0`` is the upstream boundary and the last section is the
-mouth, so the functions work for any channel::
+M. Cobos. The whole workflow runs from one project file (start from
+``environmentaltools/models/barrier/barrier_template.yaml``): a base case (a
+folder with BARRIER's ``config.yaml`` and its CSV files), the list of cases (the
+base case plus changes), the folders, the executable and the postprocessing.
+Section ``x = 0`` is the upstream boundary and the last section is the mouth,
+so it works for any channel::
 
     from environmentaltools.models import barrier
 
-    barrier.create_case("run_002", "run_001", config={"hydrodynamics": {"courant_number": 0.2}},
-                        along_channel={"nmann": {"scale": 1.1}})
-    nc = barrier.run_case("run_002", "outputs/run_002")      # executable: BARRIER_EXE or PATH
-    ds = barrier.read_output(nc)                             # 'date' and 'km' (to the mouth)
-    points, series = barrier.extract_points(ds, {"Mouth": 0, "Gauge": 50})
-    barrier.plot_along_channel(ds, "S", points, file_name="salt_intrusion.png")
+    project = barrier.load_project("barrier.yaml")
+    barrier.prepare(project)       # create/update the cases + overview to review them
+    barrier.run(project)           # run the cases without result
+    barrier.postprocess(project)   # series at points, figures, comparison with a reference
 
-Batches of variants of a base case go in a project file (start from
-``environmentaltools/models/barrier/barrier_template.yaml``):
-``load_project`` → ``prepare`` → ``run`` → ``read_project``.
+or from the terminal: ``python -m environmentaltools.models.barrier all barrier.yaml``.
+Each step only does what is pending: a case changed in the list (or a changed
+base case) is created, run and postprocessed again; the rest are kept. Example:
+``examples/models - E02 - barrier_workflow.py``.
 
 Building the geometry (``cross-sections.csv``, ``along_channel_data.csv``)
 from a channel axis and a DEM is not covered yet.
@@ -154,11 +156,15 @@ decimetres.
 .. autosummary::
    :toctree: _autosummary
 
-   create_case
    load_project
    prepare
    run
+   postprocess
+   cases_overview
+   create_case
    run_case
+   postprocess_output
+   load_points
    read_config
    input_files
    read_csv

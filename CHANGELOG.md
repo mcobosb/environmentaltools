@@ -7,11 +7,13 @@ All relevant project updates are documented here:
 - new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
 - `models.delft3d` (raw outputs, NEFIS `.dat` extraction, grid and wave field plots), `models.cshore`, `models.coastalme` and `models.swan_copla` (SWAN → COPLA → Kobayashi workflow) (potinar)
 - `processes.kobayashi_transport`: Kobayashi et al. (2008) transport as a pure function of the 2-D fields, following the implementation of CSHORE (`SEDTRA`, oblique waves) in a frame aligned with the local waves (potinar)
+- `models.barrier` workflow driven by one project file for any channel: `prepare` detects cases changed in the list or a changed base case, creates them again and marks their result as pending, draws the section parameters of each case and writes `cases_overview.xlsx` (base case and cases side by side); `postprocess` processes only new results (series at points, figures, comparison with a reference case or NetCDF); command line `python -m environmentaltools.models.barrier {prepare,run,postprocess,all} barrier.yaml`; the executable can be a list of candidates (one per computer) and `work_dir: true` uses the system temporary folder; example `models - E02 - barrier_workflow` (potinar)
 - "which model to use" guide in the docs and docstrings of `models` (potinar)
 - `processes.bed_slope`: bed slope components on regular, rotated or curvilinear grids (potinar)
 - `models.barrier`: BARRIER 1-D estuarine model for any channel: cases from a base case with config and along-channel parameter changes (constant, interpolated, stepwise, Gaussian-smoothed), boundary and tributary files, cross-section monotonicity check and fix, optional YAML project with variants, resumable runner, NetCDF reader with dates and distance to the mouth, series at points, tidal mean, comparison of runs and figures; validated against the Guadalquivir calibration of M. Cobos (potinar)
 
 ### Changed
+- `models.barrier`: the list of cases of the project file is `cases` (`variants` still accepted); the environment variable `BARRIER_EXE` takes precedence over the configured executable (potinar)
 - model readers/writers/runners moved from `common`, `processes` and `graphics` to `models`; the old names are deprecated aliases (removal in 4.0) (potinar)
 - `processes` split by topic: `waves`, `coastal`, `hydrology`, `properties` (`processes.compute` kept for compatibility) (potinar)
 - Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)

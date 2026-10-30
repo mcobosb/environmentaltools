@@ -1,35 +1,62 @@
-# BARRIER project template (environmentaltools.models.barrier)
+# BARRIER project (environmentaltools.models.barrier): copy this file next to your base case and edit it.
 # Relative paths are resolved against the folder of this file.
-# Workflow:  project = barrier.load_project("barrier.yaml"); barrier.prepare(project); barrier.run(project)
+#
+# Workflow (each step only does what is pending, so it can be run again at any time):
+#   python -m environmentaltools.models.barrier prepare barrier.yaml       create/update the cases → review them
+#   python -m environmentaltools.models.barrier run barrier.yaml           run BARRIER in the cases without result
+#   python -m environmentaltools.models.barrier postprocess barrier.yaml   series, figures, comparison
+#   (or "all" for the three; from Python: project = barrier.load_project("barrier.yaml");
+#    barrier.prepare(project); barrier.run(project); barrier.postprocess(project))
 
-executable: null          # BARRIER executable; null → environment variable BARRIER_EXE, else 'barrier' on the PATH
-base_case: base           # case folder used as starting point: BARRIER's config.yaml + the CSV files it names
-cases_dir: cases          # one folder per variant (+ cases.csv, the manifest)
-results_dir: results      # one folder per variant: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
-timeout_hours: null       # maximum run time per case
-work_dir: null            # local folder where BARRIER writes while running (outputs moved to results_dir at the end);
-                          # set it when results_dir is synced (Synology, OneDrive) or on /mnt/c from WSL
+base_case: base_case            # BARRIER's config.yaml + the CSV files it names; every case starts from it
+cases_dir: cases                # one folder per case: what BARRIER reads (+ variant.json, section_parameters.png)
+overview_file: null             # base case and cases side by side, to review before running
+                                # (null → <cases_dir>/cases_overview.xlsx)
+results_dir: results            # one folder per case: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
+postprocess_dir: postprocess    # one folder per case: timeseries.xlsx and figures
 
-# Each variant is a copy of base_case with optional changes:
+executable: null                # BARRIER executable, or a list (one per computer: the first that exists is used).
+                                # The environment variable BARRIER_EXE, if set, takes precedence; null → 'barrier' on the PATH
+work_dir: null                  # true → BARRIER writes in the system temporary folder and its files are moved to
+                                # results_dir at the end. Set it when results_dir is synced (Synology, OneDrive) or
+                                # on /mnt/c from WSL: writing the NetCDF there can corrupt it
+timeout_hours: null             # maximum run time per case
+
+# The cases: each one is the base case with the changes written under its name (they can be combined).
+# Changing a case, or the base case, makes prepare create it again and run run it again.
 #   config:        merged into config.yaml (same structure as BARRIER's config)
-#   along_channel: {column: changes} of along_channel_data (see barrier.set_section_parameter):
+#   along_channel: {column: changes} of along_channel_data (nmann, kh, Sf, beta; x in m from the upstream boundary):
 #                    value: 0.03                      constant
-#                    points: [[x, value], ...]        linear interpolation (x in m from the upstream boundary)
+#                    points: [[x, value], ...]        linear interpolation
 #                    steps: [[x_from, value], ...]    piecewise constant
 #                    sigma: 50                        Gaussian smoothing (in number of sections), alone or after the above
 #                    scale: 1.1 / add: 0.002          applied to the result (or to the current profile)
-#   files:         {name in the case: source file}  replaces input files (e.g. another tide or discharge series)
-variants:
+#   files:         {name in the case: file}         replaces input files (e.g. another tide or discharge series)
+cases:
   reference: {}
-  courant_02:
-    config:
-      hydrodynamics: {courant_number: 0.2}
   rough:
     along_channel:
       nmann: {scale: 1.1}
   kh_profile:
     along_channel:
       kh: {points: [[0, 10], [20000, 50], [50000, 100], [70000, 300], [95000, 500]], sigma: 50}
-  # tide_2010:
+  courant_02:
+    config:
+      hydrodynamics: {courant_number: 0.2}
+  # year_2010:
   #   config: {run: {start_date: "2010-01-01T00:00:00", end_date: "2010-03-01T00:00:00"}}
   #   files: {tides.csv: inputs/tides_2010.csv, dam_discharge.csv: inputs/discharge_2010.csv}
+
+postprocess:
+  points: null                  # series at these points: a file (xlsx/csv), a list of {name, km} or {name: km};
+                                # km = distance to the mouth. Example: {Mouth: 0, Gauge A: 20, Gauge B: 60}
+  points_columns: {name: name, km: km}   # column names in the points file
+  variables: [eta, S]           # variables of the series (any (time, x) variable of the output)
+  reference: null               # compare every case with: {case: reference} (a case of the list) or
+                                # {file: other_run.nc, name: label} (any BARRIER output, also processed)
+  tolerances: null              # {variable: largest difference taken as 'equal'}; null → eta 0.005, Q 1, S 0.05, A 1
+  stations_km: null             # stations of the comparison figure (null → 4 from the mouth to 80 % of the channel)
+  zoom_days: null               # days shown in the water-level row of that figure (null → the first 4)
+  window_hours: 25              # tidal mean (moving mean) of series and maps; null → raw output
+  along_channel: {variable: S, levels: [1, 5, 10, 20]}   # variable in every section against time, contour lines
+  legend_notes: {}              # extra lines for the legend sheet of the tables (e.g. the vertical datum)

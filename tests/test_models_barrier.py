@@ -215,3 +215,86 @@ def test_run_case_in_local_work_dir(tmp_path, base_case):
     assert nc == out / "sim.nc" and barrier.is_readable(nc)
     assert (out / "barrier_console.txt").exists()
     assert list(work.iterdir()) == []          # the temporary run folder is removed
+
+
+def fake_barrier(tmp_path):
+    """Executable that writes a small BARRIER-like output (11 sections, 2 days) in its working folder."""
+    import sys
+    exe = tmp_path / "fake_barrier"
+    exe.write_text(f"#!{sys.executable}\n"
+                   "import numpy as np, xarray as xr\n"
+                   "t = np.arange(49) * 3600.0; x = np.linspace(0, 10000, 11)\n"
+                   "eta = np.sin(2 * np.pi * t[:, None] / 44712) * (1 + x / 1e4)\n"
+                   "v = lambda a, u, n: (('time', 'x'), a, {'units': u, 'long_name': n})\n"
+                   "xr.Dataset({'eta': v(eta, 'm', 'free surface elevation'),\n"
+                   "            'S': v(np.tile(x / 1e4 * 30, (49, 1)), 'psu', 'salinity'),\n"
+                   "            'Q': v(10 * eta, 'm3/s', 'water flow'), 'A': v(100 + eta, 'm2', 'Area')},\n"
+                   "           coords={'time': t, 'x': x}, attrs={'time_offset': '2008-05-01 00:00:00'}\n"
+                   "           ).to_netcdf('test_barrier_sim.nc')\n")
+    exe.chmod(0o755)
+    return exe
+
+
+def test_workflow_prepare_run_postprocess(base_case, tmp_path, monkeypatch):
+    """prepare → run → postprocess from one project file; only what is pending is done again."""
+    import time
+
+    from environmentaltools.models.barrier.__main__ import main
+
+    monkeypatch.delenv("BARRIER_EXE", raising=False)
+    exe = fake_barrier(tmp_path)
+    pd.DataFrame({"punto": ["Mouth", "Up"], "dist": [0.0, 9.0]}).to_excel(tmp_path / "points.xlsx", index=False)
+    cfg = {"base_case": str(base_case), "cases_dir": "cases", "results_dir": "results",
+           "postprocess_dir": "post", "work_dir": True,
+           "executable": [str(tmp_path / "missing_barrier"), str(exe)],       # the first that exists is used
+           "cases": {"ref": {}, "rough": {"along_channel": {"nmann": {"scale": 2}}}},
+           "postprocess": {"points": "points.xlsx", "points_columns": {"name": "punto", "km": "dist"},
+                           "reference": {"case": "ref"}, "stations_km": [0, 5]}}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump(cfg))
+
+    main(["all", str(f)])
+    project = barrier.load_project(f)
+    for case in ("ref", "rough"):
+        assert (tmp_path / "cases" / case / "section_parameters.png").exists()
+        assert (tmp_path / "results" / case / "done.json").exists()
+        assert (tmp_path / "post" / case / "timeseries.xlsx").exists()
+        assert (tmp_path / "post" / case / "along_channel_S.png").exists()
+    assert (tmp_path / "post" / "rough" / "vs_ref.xlsx").exists()
+    assert not (tmp_path / "post" / "ref" / "vs_ref.xlsx").exists()   # no comparison of the reference with itself
+    series = pd.read_excel(tmp_path / "post" / "rough" / "timeseries.xlsx", sheet_name=None)
+    assert {"eta", "S", "points", "legend"} <= set(series)
+    assert list(series["S"].columns) == ["date", "Mouth (km 0)", "Up (km 9)"]
+    overview = pd.read_excel(project.overview_file, sheet_name=None)
+    stats = overview["section_parameters"].set_index(["parameter", "statistic"])
+    assert stats.loc[("nmann", "mean"), "rough"] == pytest.approx(2 * stats.loc[("nmann", "mean"), "base"])
+
+    # nothing pending: kept, not run, up to date
+    assert set(barrier.prepare(project, verbose=False)["status"]) == {"kept"}
+    assert len(barrier.run(project, verbose=False)) == 0
+    assert set(barrier.postprocess(project, verbose=False)["status"]) == {"up to date"}
+
+    # a case changed in the list is created and run again, and postprocessed again
+    time.sleep(0.05)
+    cfg["cases"]["rough"] = {"along_channel": {"nmann": {"scale": 3}}}
+    f.write_text(yaml.safe_dump(cfg))
+    project = barrier.load_project(f)
+    status = barrier.prepare(project, verbose=False).set_index("case")["status"]
+    assert status["rough"] == "updated" and status["ref"] == "kept"
+    assert not (tmp_path / "results" / "rough" / "done.json").exists()
+    assert list(barrier.run(project, verbose=False)["case"]) == ["rough"]
+    post = barrier.postprocess(project, verbose=False).set_index("case")["status"]
+    assert post["rough"] == "done"
+
+
+def test_project_reference_file_and_validation(base_case, tmp_path):
+    fake_output().drop_vars(["date", "km"]).to_netcdf(tmp_path / "other.nc")
+    project = barrier.load_project({"base_case": str(base_case), "cases": {"a": {}},
+                                    "postprocess_dir": str(tmp_path / "post"), "results_dir": str(tmp_path / "res"),
+                                    "postprocess": {"points": {"Mouth": 0},
+                                                    "reference": {"file": str(tmp_path / "other.nc"), "name": "old"}}})
+    out = barrier.postprocess(project, verbose=False).set_index("case")["status"]
+    assert out["old"] == "done (reference)" and out["a"] == "no result"
+    assert (tmp_path / "post" / "old" / "timeseries_eta.png").exists()
+    with pytest.raises(ValueError):
+        barrier.load_project({"base_case": "b", "cases": {"a": {}}, "postprocess": {"reference": {"case": "zz"}}})
