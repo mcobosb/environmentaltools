@@ -81,6 +81,75 @@ def _along_channel(case_dir):
     return read_csv(Path(case_dir) / read_config(case_dir)["geometry"]["along_channel_file"])
 
 
+#: Columns of a new cases table (examples of each kind of change).
+TEMPLATE_COLUMNS = ["case", "description", "along_channel.nmann.scale", "along_channel.kh.scale",
+                    "hydrodynamics.courant_number", "run.end_date", "files.tides.csv"]
+
+
+def cases_to_table(cases):
+    """Cases as written in a project file (``{case: {config, along_channel, files}}``) → cases table.
+
+    Returns:
+        pd.DataFrame: One row per case, one column per change (see
+        :func:`~environmentaltools.models.barrier.config.read_cases_table`).
+    """
+    def flat(d, prefix):
+        out = {}
+        for k, v in (d or {}).items():
+            key = f"{prefix}{k}"
+            if isinstance(v, dict) and v:
+                out.update(flat(v, key + "."))
+            else:
+                out[key] = json.dumps(v) if isinstance(v, (list, dict)) else v
+        return out
+
+    rows = []
+    for name, c in cases.items():
+        row = {"case": name, **flat(c.get("config"), ""), **flat(c.get("along_channel"), "along_channel.")}
+        row.update({f"files.{k}": v for k, v in (c.get("files") or {}).items()})
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    return df if len(df.columns) > 1 else df.reindex(columns=["case"])
+
+
+def write_cases_table(file_name, cases=None, descriptions=None):
+    """Write a cases table (Excel) to fill in: the given cases, or an example to start from.
+
+    Args:
+        file_name (str | Path): Output ``.xlsx``.
+        cases (dict | None): Cases as in a project file; ``None`` writes an example row and the
+            usual columns (:data:`TEMPLATE_COLUMNS`).
+        descriptions (dict | None): ``{case: text}`` for the ``description`` column.
+
+    Returns:
+        Path: The written file.
+    """
+    from ._xlsx import write_tables
+
+    if cases:
+        table = cases_to_table(cases)
+        table.insert(1, "description", [(descriptions or {}).get(c, "") for c in table["case"]])
+    else:
+        table = pd.DataFrame([{"case": "reference", "description": "base case without changes"},
+                              {"case": "manning_x1.1", "description": "Manning n of every section × 1.1",
+                               "along_channel.nmann.scale": 1.1}], columns=TEMPLATE_COLUMNS)
+    return write_tables(Path(file_name), {"cases": table}, legend={
+        "use": "One row per case: the base case with the changes of its row. An empty cell means 'as in the base "
+               "case'. Add columns for other changes. After editing, run prepare (it only redoes what changed)",
+        "case": "Name of the case (also the name of its folder)",
+        "description": "Free text (ignored), as any column starting with '_'",
+        "along_channel.<column>.<option>": "Section parameters (column: nmann, kh, Sf, beta; x in m from the upstream "
+                                           "boundary). Options: value (constant), scale (×), add (+), points "
+                                           "([[x, value], …], interpolated), steps ([[x_from, value], …], by "
+                                           "stretches), sigma (Gaussian smoothing, in sections), file (csv x, value "
+                                           "next to this table, used as points)",
+        "files.<name in the case>": "File that replaces that input of the base case (relative to this table), e.g. "
+                                    "files.tides.csv = tides_2010.csv",
+        "<key.of.config.yaml>": "Any key of BARRIER's config.yaml written with dots, e.g. hydrodynamics.courant_number, "
+                                "run.end_date (2010-03-01T00:00:00), transport.salinity.beta",
+    })
+
+
 def prepare(project, overwrite=False, overview=True, figures=True, verbose=True):
     """Create (or update) one case folder per case of a project in ``cases_dir``.
 
@@ -105,6 +174,12 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
         pd.DataFrame: Manifest (``case``, ``folder``, ``status``: created / updated / kept,
         ``changes``), also written as ``cases_dir/cases.csv``.
     """
+    if project.cases_file is not None and not project.cases_file.exists():
+        write_cases_table(project.cases_file)
+        if verbose:
+            print(f"Created the cases table {project.cases_file}: fill it in and run prepare again")
+        if not project["variants"]:
+            return pd.DataFrame(columns=["case", "folder", "status", "changes"])
     root = project.cases_dir
     root.mkdir(parents=True, exist_ok=True)
     base_sig = folder_signature(project.base_case)

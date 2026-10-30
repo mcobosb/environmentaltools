@@ -7,9 +7,13 @@ What a project needs (one folder, e.g. ``01_INPUTS/``):
    cross-section tables once (step 0 below).
 2. A **project file** ``barrier.yaml``: copy
    ``environmentaltools/models/barrier/barrier_template.yaml`` and set the base case, the
-   folders, the executable (or a list, one per computer), the list of cases (the base
-   case plus changes) and the postprocessing (points, reference, figures).
-3. The BARRIER executable (https://github.com/mcobosb/Barrier), in the project file or in
+   folders, the executable (or a list, one per computer) and the postprocessing (points,
+   reference, figures). This is what hardly changes.
+3. A **cases table** ``cases.xlsx`` (``cases_file`` in the project file): one row per case
+   and one column per change of the base case, e.g. ``along_channel.nmann.scale`` or
+   ``hydrodynamics.courant_number``; an empty cell means "as in the base case". The first
+   ``prepare`` creates it with examples and a legend of the possible columns.
+4. The BARRIER executable (https://github.com/mcobosb/Barrier), in the project file or in
    the environment variable ``BARRIER_EXE``.
 
 Then run the three steps, from Python (below) or from the terminal::
@@ -20,7 +24,7 @@ Then run the three steps, from Python (below) or from the terminal::
     python -m environmentaltools.models.barrier all barrier.yaml      # the three in a row
 
 Every step only does what is pending, so they can be run again at any time: add or change a
-case in ``barrier.yaml`` (or change the base case) and the same three calls create it, run it
+row of ``cases.xlsx`` (or change the base case) and the same three calls create it, run it
 and postprocess it, leaving the rest as they are.
 """
 import matplotlib

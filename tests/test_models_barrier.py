@@ -145,7 +145,8 @@ def test_project_prepare(base_case, tmp_path):
 
 
 def test_template_loads():
-    assert barrier.load_project(barrier.TEMPLATE).case_names[0] == "reference"
+    project = barrier.load_project(barrier.TEMPLATE)
+    assert project.cases_file.name == "cases.xlsx" and project.case_names == []
 
 
 def test_missing_executable(tmp_path, monkeypatch):
@@ -298,3 +299,57 @@ def test_project_reference_file_and_validation(base_case, tmp_path):
     assert (tmp_path / "post" / "old" / "timeseries_eta.png").exists()
     with pytest.raises(ValueError):
         barrier.load_project({"base_case": "b", "cases": {"a": {}}, "postprocess": {"reference": {"case": "zz"}}})
+
+
+def test_cases_table(base_case, tmp_path):
+    """Cases from an Excel table: one row per case, one column per change; empty cell = base case."""
+    (tmp_path / "inputs").mkdir()
+    pd.DataFrame({"x": [0, 10000], "kh": [10, 110]}).to_csv(tmp_path / "inputs" / "kh.csv", index=False)
+    (tmp_path / "inputs" / "tides_2.csv").write_text(";t,h\n0,1\n")
+    table = pd.DataFrame({
+        "case": ["ref", "rough", "kh_file", "other"],
+        "description": ["base", "n × 2", "", "faster"],
+        "along_channel.nmann.scale": [None, 2, None, None],
+        "along_channel.kh.file": [None, None, "kh.csv", None],
+        "hydrodynamics.courant_number": [None, None, None, 0.2],
+        "run.end_date": [None, None, None, "2008-05-02T00:00:00"],
+        "files.tides.csv": [None, None, None, "tides_2.csv"],
+        "_my_notes": ["x", None, None, None]})
+    table.to_excel(tmp_path / "inputs" / "cases.xlsx", sheet_name="cases", index=False)
+    cases = barrier.read_cases_table(tmp_path / "inputs" / "cases.xlsx")
+    assert cases["ref"] == {}
+    assert cases["rough"] == {"along_channel": {"nmann": {"scale": 2}}}          # 2.0 in Excel → 2
+    assert cases["kh_file"] == {"along_channel": {"kh": {"points": [[0.0, 10.0], [10000.0, 110.0]]}}}
+    assert cases["other"]["config"] == {"hydrodynamics": {"courant_number": 0.2}, "run": {"end_date": "2008-05-02T00:00:00"}}
+
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case), "cases_file": "inputs/cases.xlsx"}))
+    project = barrier.load_project(f)
+    assert project.case_names == ["ref", "rough", "kh_file", "other"]
+    assert project["variants"]["other"]["files"] == {"tides.csv": "inputs/tides_2.csv"}   # relative to barrier.yaml
+    barrier.prepare(project, verbose=False)
+    other = tmp_path / "cases" / "other"
+    assert (other / "tides.csv").read_text() == ";t,h\n0,1\n"
+    assert barrier.read_config(other)["hydrodynamics"]["courant_number"] == 0.2
+    np.testing.assert_allclose(barrier.read_csv(tmp_path / "cases/kh_file/along_channel_data.csv")["kh"],
+                               10 + np.arange(0, 10001, 1000.0) / 100)
+    assert set(barrier.prepare(project, verbose=False)["status"]) == {"kept"}
+
+    # YAML cases → table → same cases
+    back = tmp_path / "back.xlsx"
+    barrier.write_cases_table(back, project["variants"])
+    again = barrier.read_cases_table(back)
+    assert {k: v for k, v in again.items() if k != "other"} == {k: v for k, v in cases.items() if k != "other"}
+
+
+def test_cases_table_template_created(base_case, tmp_path):
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case), "cases_file": "cases.xlsx"}))
+    manifest = barrier.prepare(barrier.load_project(f), verbose=False)
+    assert manifest.empty and (tmp_path / "cases.xlsx").exists()
+    project = barrier.load_project(f)                       # the template has two example cases
+    assert project.case_names == ["reference", "manning_x1.1"]
+    assert project["variants"]["manning_x1.1"] == {"along_channel": {"nmann": {"scale": 1.1}}}
+    with pytest.raises(ValueError):
+        pd.DataFrame({"case": ["a", "a"]}).to_excel(tmp_path / "dup.xlsx", index=False)
+        barrier.read_cases_table(tmp_path / "dup.xlsx")

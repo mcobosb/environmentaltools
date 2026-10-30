@@ -9,6 +9,9 @@
 #    barrier.prepare(project); barrier.run(project); barrier.postprocess(project))
 
 base_case: base_case            # BARRIER's config.yaml + the CSV files it names; every case starts from it
+cases_file: cases.xlsx          # THE CASES: one row per case, one column per change of the base case (empty cell = as
+                                # in the base case); its 'legend' sheet explains the columns. If it does not exist,
+                                # prepare creates it with examples. The cases can also (or instead) go under 'cases:' below
 cases_dir: cases                # one folder per case: what BARRIER reads (+ variant.json, section_parameters.png)
 overview_file: null             # base case and cases side by side, to review before running
                                 # (null → <cases_dir>/cases_overview.xlsx)
@@ -22,8 +25,10 @@ work_dir: null                  # true → BARRIER writes in the system temporar
                                 # on /mnt/c from WSL: writing the NetCDF there can corrupt it
 timeout_hours: null             # maximum run time per case
 
-# The cases: each one is the base case with the changes written under its name (they can be combined).
-# Changing a case, or the base case, makes prepare create it again and run run it again.
+# Cases written here instead of (or besides) the table: each one is the base case with the changes written under
+# its name (they can be combined). Changing a case, or the base case, makes prepare create it again and run run it
+# again. In the table the same changes are columns: along_channel.nmann.scale, hydrodynamics.courant_number,
+# files.tides.csv…
 #   config:        merged into config.yaml (same structure as BARRIER's config)
 #   along_channel: {column: changes} of along_channel_data (nmann, kh, Sf, beta; x in m from the upstream boundary):
 #                    value: 0.03                      constant
@@ -32,20 +37,13 @@ timeout_hours: null             # maximum run time per case
 #                    sigma: 50                        Gaussian smoothing (in number of sections), alone or after the above
 #                    scale: 1.1 / add: 0.002          applied to the result (or to the current profile)
 #   files:         {name in the case: file}         replaces input files (e.g. another tide or discharge series)
-cases:
-  reference: {}
-  rough:
-    along_channel:
-      nmann: {scale: 1.1}
-  kh_profile:
-    along_channel:
-      kh: {points: [[0, 10], [20000, 50], [50000, 100], [70000, 300], [95000, 500]], sigma: 50}
-  courant_02:
-    config:
-      hydrodynamics: {courant_number: 0.2}
-  # year_2010:
-  #   config: {run: {start_date: "2010-01-01T00:00:00", end_date: "2010-03-01T00:00:00"}}
-  #   files: {tides.csv: inputs/tides_2010.csv, dam_discharge.csv: inputs/discharge_2010.csv}
+cases: {}
+#  kh_profile:                   # a profile is easier to write here than in a cell
+#    along_channel:
+#      kh: {points: [[0, 10], [20000, 50], [50000, 100], [70000, 300], [95000, 500]], sigma: 50}
+#  year_2010:
+#    config: {run: {start_date: "2010-01-01T00:00:00", end_date: "2010-03-01T00:00:00"}}
+#    files: {tides.csv: inputs/tides_2010.csv, dam_discharge.csv: inputs/discharge_2010.csv}
 
 postprocess:
   points: null                  # series at these points: a file (xlsx/csv), a list of {name, km} or {name: km};

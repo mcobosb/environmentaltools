@@ -127,8 +127,11 @@ BARRIER
 BARRIER (https://github.com/mcobosb/Barrier) is the 1-D estuarine model of
 M. Cobos. The whole workflow runs from one project file (start from
 ``environmentaltools/models/barrier/barrier_template.yaml``): a base case (a
-folder with BARRIER's ``config.yaml`` and its CSV files), the list of cases (the
-base case plus changes), the folders, the executable and the postprocessing.
+folder with BARRIER's ``config.yaml`` and its CSV files), the folders, the
+executable and the postprocessing. The cases go in an Excel table
+(``cases_file``): one row per case and one column per change of the base case
+(e.g. ``along_channel.nmann.scale``, ``hydrodynamics.courant_number``,
+``files.tides.csv``); an empty cell means "as in the base case".
 Section ``x = 0`` is the upstream boundary and the last section is the mouth,
 so it works for any channel::
 
@@ -161,6 +164,8 @@ decimetres.
    run
    postprocess
    cases_overview
+   read_cases_table
+   write_cases_table
    create_case
    run_case
    postprocess_output

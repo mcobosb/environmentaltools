@@ -13,8 +13,8 @@ Not covered yet: building ``cross-sections.csv`` and ``along_channel_data.csv``
 from a channel axis and a DEM (to be added; for now they come from an existing case).
 
 Workflow, from one project file (start from ``barrier_template.yaml`` in this folder):
-a base case (a folder with BARRIER's ``config.yaml`` and its CSV files) and a list of
-cases, each one the base case plus some changes::
+a base case (a folder with BARRIER's ``config.yaml`` and its CSV files) and a table of
+cases (``cases_file``, Excel: one row per case, one column per change of the base case)::
 
     from environmentaltools.models import barrier
 
@@ -36,10 +36,12 @@ The pieces can also be used one by one (``create_case``, ``run_case``,
 
 from pathlib import Path
 
-from .config import BarrierProject, input_files, load_project, read_config, start_date, write_config
+from .config import (BarrierProject, input_files, load_project, read_cases_table, read_config, start_date,
+                     write_config)
 from .inputs import (CROSS_SECTION_COLUMNS, MONOTONIC, check_cross_sections, fix_cross_sections, read_csv,
                      section_profile, set_section_parameter, write_csv, write_series, write_tributaries)
-from .cases import cases_overview, create_case, folder_signature, prepare, write_overview
+from .cases import (cases_overview, cases_to_table, create_case, folder_signature, prepare, write_cases_table,
+                    write_overview)
 from .run import barrier_executable, has_time_steps, is_readable, run, run_case
 from .read import (COMPARE_TOLERANCES, compare, distance_to_mouth, extract_points, latest_output,
                    nearest_sections, read_output, read_project, tidal_mean, time_step_hours)
@@ -49,7 +51,8 @@ from .postprocess import load_points, postprocess, postprocess_output
 TEMPLATE = Path(__file__).with_name("barrier_template.yaml")
 
 __all__ = [
-    "BarrierProject", "load_project", "read_config", "write_config", "input_files", "start_date", "TEMPLATE",
+    "BarrierProject", "load_project", "read_cases_table", "cases_to_table", "write_cases_table",
+    "read_config", "write_config", "input_files", "start_date", "TEMPLATE",
     "CROSS_SECTION_COLUMNS", "MONOTONIC", "read_csv", "write_csv", "write_series", "write_tributaries",
     "section_profile", "set_section_parameter", "check_cross_sections", "fix_cross_sections",
     "create_case", "prepare", "cases_overview", "write_overview", "folder_signature",
