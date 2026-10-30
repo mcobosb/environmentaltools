@@ -33,6 +33,7 @@ DEFAULTS = {
     "cases_dir": "cases",
     "results_dir": "results",
     "timeout_hours": None,
+    "work_dir": None,
     "variants": {},
 }
 

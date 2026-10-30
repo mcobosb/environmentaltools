@@ -197,3 +197,21 @@ def test_plots(tmp_path, base_case):
     barrier.plot_section_parameters(barrier.read_csv(base_case / "along_channel_data.csv"),
                                     file_name=tmp_path / "s.png")
     assert all((tmp_path / f).exists() for f in ("p.png", "a.png", "c.png", "s.png"))
+
+
+def test_run_case_in_local_work_dir(tmp_path, base_case):
+    """BARRIER writes in a local work folder and its files end up in out_dir."""
+    import sys
+    exe = tmp_path / "fake_barrier"
+    exe.write_text(f"#!{sys.executable}\n"
+                   "import numpy as np, xarray as xr\n"
+                   "xr.Dataset({'eta': (('time', 'x'), np.zeros((3, 4)))},\n"
+                   "           coords={'time': [0., 3600., 7200.], 'x': np.arange(4.)}).to_netcdf('sim.nc')\n"
+                   "print('Run successfully end')\n")
+    exe.chmod(0o755)
+    work, out = tmp_path / "local", tmp_path / "synced" / "case"
+    work.mkdir()
+    nc = barrier.run_case(base_case, out, exe, work_dir=work, verbose=False)
+    assert nc == out / "sim.nc" and barrier.is_readable(nc)
+    assert (out / "barrier_console.txt").exists()
+    assert list(work.iterdir()) == []          # the temporary run folder is removed

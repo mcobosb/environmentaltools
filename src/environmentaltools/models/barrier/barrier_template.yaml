@@ -7,6 +7,8 @@ base_case: base           # case folder used as starting point: BARRIER's config
 cases_dir: cases          # one folder per variant (+ cases.csv, the manifest)
 results_dir: results      # one folder per variant: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
 timeout_hours: null       # maximum run time per case
+work_dir: null            # local folder where BARRIER writes while running (outputs moved to results_dir at the end);
+                          # set it when results_dir is synced (Synology, OneDrive) or on /mnt/c from WSL
 
 # Each variant is a copy of base_case with optional changes:
 #   config:        merged into config.yaml (same structure as BARRIER's config)

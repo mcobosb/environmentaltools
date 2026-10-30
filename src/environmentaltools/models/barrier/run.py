@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,24 @@ def has_time_steps(nc):
         return False
 
 
+def is_readable(nc):
+    """True if every variable of the NetCDF ``nc`` can be read in full.
+
+    Catches outputs damaged while being written (e.g. HDF5 chunks corrupted when the file sits in a
+    folder that a sync client reads at the same time), which open normally and fail only when the
+    damaged time steps are read.
+    """
+    import netCDF4
+
+    try:
+        with netCDF4.Dataset(nc) as ds:
+            for v in ds.variables.values():
+                v[:]
+        return True
+    except (OSError, RuntimeError):
+        return False
+
+
 def barrier_executable(executable=None):
     """BARRIER executable: ``executable``, else the environment variable ``BARRIER_EXE``, else ``barrier`` on the PATH.
 
@@ -40,13 +59,19 @@ def barrier_executable(executable=None):
         "or put 'barrier' on the PATH (build it from https://github.com/mcobosb/Barrier)")
 
 
-def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_console.txt", verbose=True):
+def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_console.txt", work_dir=None,
+             verbose=True):
     """Run BARRIER for one case folder.
 
     BARRIER reads the inputs from the folder of ``config.yaml`` and writes the NetCDF
     and the log in the working folder, which here is ``out_dir``. The screen output
     goes to ``out_dir/<console>``. The run is accepted only if it writes a
-    new NetCDF with at least one time step.
+    new NetCDF with at least one time step that can be read in full.
+
+    With ``work_dir``, BARRIER runs in a new subfolder of that local folder and its files are
+    moved to ``out_dir`` when it finishes. Use it when ``out_dir`` is in a synced folder (Synology,
+    OneDrive…) or, from WSL, on the Windows disk (``/mnt/c``): writing the NetCDF there while the
+    sync client reads it can corrupt it.
 
     Args:
         case_dir (str | Path): Case folder with ``config.yaml``.
@@ -54,6 +79,8 @@ def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_
         executable (str | Path | None): BARRIER executable (see :func:`barrier_executable`).
         timeout (float | None): Maximum run time in seconds.
         console (str): Name of the file with the screen output.
+        work_dir (str | Path | None): Local folder where BARRIER writes while it runs
+            (e.g. ``tempfile.gettempdir()``); ``None`` writes directly in ``out_dir``.
 
     Returns:
         Path: The NetCDF output.
@@ -67,15 +94,27 @@ def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_
         raise FileNotFoundError(f"No config.yaml in {case_dir}")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    console = out_dir / console
+    run_dir = Path(tempfile.mkdtemp(prefix="barrier_", dir=work_dir)) if work_dir else out_dir
     if verbose:
-        print(f"BARRIER: {exe}\n  case:    {case_dir}\n  outputs: {out_dir}\n  screen:  {console}")
+        print(f"BARRIER: {exe}\n  case:    {case_dir}\n  outputs: {out_dir}\n  screen:  {out_dir / console}"
+              + (f"\n  running in: {run_dir}" if work_dir else ""))
     started = time.time()
-    rc = run_process([exe, config], out_dir, log_file=console, timeout=timeout)
+    try:
+        rc = run_process([exe, config], run_dir, log_file=run_dir / console, timeout=timeout)
+    finally:
+        if work_dir:   # move everything BARRIER wrote, also after a failure (for the screen output)
+            for f in run_dir.iterdir():
+                (out_dir / f.name).unlink(missing_ok=True)
+                shutil.move(str(f), out_dir / f.name)
+            shutil.rmtree(run_dir, ignore_errors=True)
+    console = out_dir / console
     new = [p for p in out_dir.glob("*.nc") if p.stat().st_mtime >= started and has_time_steps(p)]
     if rc != 0 or not new:
         raise RuntimeError(f"BARRIER wrote no valid output (return code {describe_return_code(rc)}); see {console}")
     nc = max(new, key=os.path.getmtime)
+    if not is_readable(nc):
+        raise RuntimeError(f"BARRIER output {nc.name} is damaged (some time steps cannot be read). If it was written "
+                           "in a synced folder or on /mnt/c from WSL, run with a local work_dir")
     if verbose:
         print(f"  done in {(time.time() - started) / 60:.1f} min: {nc.name}")
     return nc
@@ -115,7 +154,8 @@ def run(project, cases=None, force=False, verbose=True):
         row = {"case": case, "start": datetime.now().isoformat(timespec="seconds")}
         t0 = time.time()
         try:
-            nc = run_case(project.cases_dir / case, res, exe, timeout, verbose=False)
+            nc = run_case(project.cases_dir / case, res, exe, timeout, work_dir=project.path(project["work_dir"]),
+                          verbose=False)
             row.update(ok=True, output=nc.name)
             (res / "done.json").write_text(json.dumps({**row, "minutes": round((time.time() - t0) / 60, 2)},
                                                       indent=1))
