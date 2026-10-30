@@ -53,14 +53,10 @@ def barrier_executable(executable=None):
     Raises:
         FileNotFoundError: If none exists.
     """
-    given = list(executable) if isinstance(executable, (list, tuple)) else [executable]
-    candidates = [os.environ.get("BARRIER_EXE"), *given, shutil.which("barrier")]
-    for c in candidates:
-        if c and Path(c).expanduser().exists():
-            return Path(c).expanduser()
-    raise FileNotFoundError(
-        "BARRIER executable not found: pass 'executable', set the environment variable BARRIER_EXE "
-        "or put 'barrier' on the PATH (build it from https://github.com/mcobosb/Barrier)")
+    from ..common.execution import resolve_executable
+
+    return resolve_executable(executable, "BARRIER_EXE", ["barrier"], model="BARRIER (build it from "
+                              "https://github.com/mcobosb/Barrier)")
 
 
 def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_console.txt", work_dir=None,

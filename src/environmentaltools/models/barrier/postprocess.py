@@ -142,11 +142,9 @@ def postprocess_output(ds, label, out_dir, points=None, settings=None, reference
 
 
 def _is_up_to_date(out_dir, sources):
-    marker = Path(out_dir) / TIMESERIES
-    if not marker.exists():
-        return False
-    t = marker.stat().st_mtime
-    return all(t > Path(f).stat().st_mtime for f in sources if f and Path(f).exists())
+    from ..common.tables import is_up_to_date
+
+    return is_up_to_date(Path(out_dir) / TIMESERIES, sources)
 
 
 def postprocess(project, cases=None, force=False, verbose=True):

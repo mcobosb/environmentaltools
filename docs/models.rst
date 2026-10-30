@@ -48,16 +48,25 @@ SWAN and COPLA instead of CSHORE.
 SWAN
 ----
 
-A SWAN project is described by one YAML file (start from
-``environmentaltools/models/swan/swan_template.yaml``) and run in three steps::
+A SWAN project follows the same workflow as BARRIER. The project file (start
+from ``environmentaltools/models/swan/swan_template.yaml``) holds what hardly
+changes: grids, boundaries, physics, numerics, outputs, folders and executable.
+What changes often goes in tables: the sea states (``states: file``, one row per
+state) and, optionally, the variants (``variants_file``: one row per variant, one
+column per changed key such as ``physics.wcap``). The cases are states ×
+variants::
 
     from environmentaltools.models import swan
 
     cfg = swan.load_config("swan.yaml")
-    swan.prepare(cfg)              # grids, nesting points, one folder per case
+    swan.prepare(cfg)              # one folder per case + cases_overview.xlsx to review them
     swan.run(cfg)                  # where SWAN is installed (resumable)
-    points = swan.read_points(cfg) # one row per case, grid and output point
-    swan.summary(cfg)              # convergence and errors
+    swan.postprocess(cfg)          # points.xlsx, convergence.xlsx, maps of chosen cases
+
+or from the terminal: ``python -m environmentaltools.models.swan all swan.yaml``.
+Each step only does what is pending: a case whose state or variant changed (or
+every case, if the grids changed) is written again and run again; the rest are
+kept. Example: ``examples/models - E01 - swan_workflow.py``.
 
 Features: curvilinear (Delft3D/RGFGRID ``.grd``/``.dep``) and regular grids,
 nesting as in Delft3D-WAVE (2-D spectra on the whole perimeter of the nested
@@ -73,6 +82,9 @@ states × variants, resumable execution on local disk, readers of tables,
    load_config
    prepare
    run
+   postprocess
+   write_overview
+   read_variants_table
    read_points
    read_map
    read_table

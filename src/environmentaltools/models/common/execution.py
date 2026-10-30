@@ -105,3 +105,45 @@ def describe_return_code(rc):
     hints = {"0xC0000135": "a DLL is missing", "0xC0000139": "DLL entry point not found (conflicting DLLs)",
              "0xC0000005": "access violation"}
     return f"{rc} ({code}{': ' + hints[code] if code in hints else ''})"
+
+
+def resolve_executable(given=None, env_var=None, names=(), search_dirs=(), model="model"):
+    """Executable of a model: the environment variable ``env_var``, else ``given`` (a path or a list of
+    candidate paths, e.g. one per computer: the first that exists), else the first of ``names`` found in
+    ``search_dirs`` or on the PATH.
+
+    Args:
+        given (str | Path | list | None): Configured path(s); ``"auto"`` or ``None`` to search.
+        env_var (str | None): Environment variable that takes precedence (e.g. ``"SWAN_EXE"``).
+        names (list[str]): Executable names searched when nothing else is found.
+        search_dirs (list): Folders searched recursively for ``names``.
+        model (str): Model name used in the error message.
+
+    Returns:
+        Path: The executable.
+
+    Raises:
+        FileNotFoundError: If none exists.
+    """
+    import shutil
+
+    if env_var and os.environ.get(env_var):
+        p = Path(os.environ[env_var]).expanduser()
+        if p.exists():
+            return p
+        raise FileNotFoundError(f"{env_var}={p} does not exist")
+    candidates = list(given) if isinstance(given, (list, tuple)) else [given]
+    for c in candidates:
+        if c and str(c) != "auto" and Path(c).expanduser().exists():
+            return Path(c).expanduser()
+    p = find_executable(names, search_dirs) if names and search_dirs else None
+    if p is not None:
+        return p
+    for n in names:
+        found = shutil.which(n)
+        if found:
+            return Path(found)
+    tried = [str(c) for c in candidates if c and str(c) != "auto"]
+    raise FileNotFoundError(f"{model} executable not found (tried {tried or 'none'}"
+                            f"{', ' + str(list(search_dirs)) if search_dirs else ''}, PATH); "
+                            f"set it in the project file{' or in ' + env_var if env_var else ''}")

@@ -11,6 +11,12 @@ them, e.g.::
     variants:
       S0: {physics: {wcap: "WCAP KOMEN delta=1"}}
       D2: {boundary_spectrum: {spreading_value: 2.0}}
+
+The variants can also be a table (``variants_file``, Excel or csv): one row per
+variant (column ``variant``) and one column per changed key written with dots
+(``physics.wcap``, ``boundary_spectrum.spreading_value``…); an empty cell keeps the
+base value and ``off`` removes a command. The cases are every sea state of the
+states table (``states: file``) × every variant.
 """
 
 import copy
@@ -60,13 +66,45 @@ DEFAULTS = {
     },
     "states": {
         "file": None,
+        "sheet": None,
         "id": None,
         "columns": {"Hs": "Hs", "Tp": "Tp", "Dir": "DirM", "Vv": "Vv", "DirV": "DirV", "spreading": None,
                     "level": None},
         "min_wind": 0.01,
     },
     "variants": {},
+    "variants_file": None,
+    "overview_file": None,
+    "postprocess_dir": "postprocess",
+    "postprocess": {
+        "maps": {"cases": [], "quantity": None},      # map figures of these cases (all their saved maps)
+    },
 }
+
+#: Text of a cell of the variants table that removes a SWAN command (``null`` in the YAML).
+REMOVE = {"off", "null", "none", "remove"}
+
+
+def read_variants_table(file_name, sheet_name=None):
+    """Read the variants table (xlsx or csv): one row per variant, one column per changed key.
+
+    Columns: ``variant`` (name; the cases are ``<state>_<variant>``), ``description`` or columns
+    starting with ``_`` (free text) and any key of the project file written with dots, e.g.
+    ``physics.wcap`` = ``WCAP KOMEN delta=1``, ``boundary_spectrum.spreading_value`` = 2,
+    ``numerics.accur``. An empty cell keeps the base value; ``off`` removes a command.
+
+    Returns:
+        dict: ``{variant: nested dict of changes}``, as ``variants:`` in the project file.
+    """
+    from ..common.tables import read_changes_table, set_nested
+
+    def column(col, value, changes, f):
+        if value is False or (isinstance(value, str) and value.strip().lower() in REMOVE):   # YAML reads off as False
+            set_nested(changes, col.split("."), None)
+            return True
+        return False
+
+    return read_changes_table(file_name, "variant", sheet_name, "variants", column)
 
 
 def deep_merge(base, override):
@@ -103,6 +141,13 @@ class SwanConfig:
         else:
             self.file, raw, self.base_dir = None, dict(source), Path.cwd()
         self.data = deep_merge(deep_merge(DEFAULTS, raw), overrides)
+        self.data["variants"] = {k: (v or {}) for k, v in (self.data["variants"] or {}).items()}
+        f = self.variants_file
+        if f is not None and f.exists():
+            for name, v in read_variants_table(f).items():
+                if name in self.data["variants"]:
+                    raise ValueError(f"Variant '{name}' is both in the project file and in {f.name}")
+                self.data["variants"][name] = v
         self._grids = None
         self.validate()
 
@@ -119,6 +164,21 @@ class SwanConfig:
             return None
         p = Path(value).expanduser()
         return p if p.is_absolute() else (self.base_dir / p).resolve()
+
+    @property
+    def variants_file(self):
+        """Table of variants (xlsx/csv), if the project uses one (see :func:`read_variants_table`)."""
+        return self.path(self.data["variants_file"])
+
+    @property
+    def overview_file(self):
+        """Excel file to review the cases before running (default ``<cases_dir>/cases_overview.xlsx``)."""
+        return self.path(self.data["overview_file"]) if self.data["overview_file"] else \
+            self.cases_dir / "cases_overview.xlsx"
+
+    @property
+    def postprocess_dir(self):
+        return self.path(self.data["postprocess_dir"])
 
     @property
     def cases_dir(self):

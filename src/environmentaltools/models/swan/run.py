@@ -1,6 +1,7 @@
 """Batch execution of prepared SWAN cases (resumable; nested grids run in sequence)."""
 
 import json
+import os
 import shutil
 import time
 from datetime import datetime
@@ -8,26 +9,25 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..common.execution import describe_return_code, find_executable, library_environment, run_process
+from ..common.execution import describe_return_code, library_environment, run_process
 from .cases import COMMON
 
 EXECUTABLES = ["swan_omp.exe", "swan.exe", "swan_omp", "swan"]
 
 
 def swan_executable(cfg):
-    """SWAN executable: the configured path or, with ``executable: auto``, the first
-    ``swan_omp.exe``/``swan.exe`` found in ``search_dirs`` (Delft3D ships SWAN in
-    ``…\\x64\\swan\\bin`` or ``kernels\\x64\\bin``)."""
+    """SWAN executable: the environment variable ``SWAN_EXE``, else the configured path (or list of paths,
+    e.g. one per computer: the first that exists), else, with ``executable: auto``, the first
+    ``swan_omp.exe``/``swan.exe`` found in ``search_dirs`` (Delft3D ships SWAN in ``…\\x64\\swan\\bin``
+    or ``kernels\\x64\\bin``) or on the PATH."""
+    from ..common.execution import resolve_executable
+
     exe = cfg["executable"]
-    if exe and exe != "auto":
-        p = cfg.path(exe)
-        if not p.exists():
-            raise FileNotFoundError(f"SWAN executable not found: {p}")
-        return p
-    p = find_executable(EXECUTABLES, cfg["search_dirs"])
-    if p is None:
-        raise FileNotFoundError(f"No SWAN executable in {cfg['search_dirs']}; set 'executable:' in the YAML")
-    return p
+    given = [cfg.path(e) for e in exe] if isinstance(exe, (list, tuple)) else (
+        None if exe in (None, "auto") else cfg.path(exe))
+    if given is not None and not isinstance(given, list) and not given.exists() and not os.environ.get("SWAN_EXE"):
+        raise FileNotFoundError(f"SWAN executable not found: {given}")      # a single configured path must exist
+    return resolve_executable(given, "SWAN_EXE", EXECUTABLES, cfg["search_dirs"], model="SWAN")
 
 
 def is_done(cfg, case):

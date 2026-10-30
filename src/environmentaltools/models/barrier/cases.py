@@ -57,13 +57,10 @@ SECTION_COLUMNS = ["nmann", "kh", "Sf", "beta"]
 
 
 def folder_signature(folder, skip=CASE_EXTRAS):
-    """SHA-1 of the names and contents of the files of a folder (to know whether it has changed)."""
-    h = hashlib.sha1()
-    for f in sorted(p for p in Path(folder).iterdir() if p.is_file() and p.name not in skip
-                    and not p.name.startswith(".")):
-        h.update(f.name.encode())
-        h.update(f.read_bytes())
-    return h.hexdigest()
+    """SHA-1 of the names and contents of the files of a case folder, without the files added by :func:`prepare`."""
+    from ..common.tables import folder_signature as signature
+
+    return signature(folder, skip)
 
 
 def _changed(case_dir, variant, base_sig):
@@ -226,15 +223,10 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     return df
 
 
-def _flatten(d, prefix=""):
-    out = {}
-    for k, v in (d or {}).items():
-        key = f"{prefix}{k}"
-        if isinstance(v, dict):
-            out.update(_flatten(v, key + "."))
-        else:
-            out[key] = "" if v is None else str(v)
-    return out
+def _flatten(d):
+    from ..common.tables import flatten
+
+    return {k: "" if v == "" else str(v) for k, v in flatten(d).items()}
 
 
 def _file_hashes(case_dir):

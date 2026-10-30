@@ -1,13 +1,25 @@
 # SWAN project template (environmentaltools.models.swan)
 # Relative paths are resolved against the folder of this file.
-# Workflow:  cfg = swan.load_config("swan.yaml"); swan.prepare(cfg); swan.run(cfg); swan.read_points(cfg)
+#
+# Workflow (each step only does what is pending, so it can be run again at any time):
+#   python -m environmentaltools.models.swan prepare swan.yaml       create/update the cases → review cases_overview.xlsx
+#   python -m environmentaltools.models.swan run swan.yaml           run SWAN in the cases without result (Windows)
+#   python -m environmentaltools.models.swan postprocess swan.yaml   points.xlsx, convergence.xlsx, maps of chosen cases
+#   (or "all"; from Python: cfg = swan.load_config("swan.yaml"); swan.prepare(cfg); swan.run(cfg); swan.postprocess(cfg))
+#
+# What changes often goes in tables: the sea states (states: file, one row per state) and the variants
+# (variants_file, one row per variant). The cases are states × variants. Changing a row (or the grids) makes
+# prepare write those cases again and run run them again; the rest are kept.
 
 project: my_project            # PROJECT name in SWAN (≤ 16 characters)
 cases_dir: cases               # generated cases (+ _common/ with grid files and cases.csv)
+overview_file: null            # cases, their status and the variants side by side (null → <cases_dir>/cases_overview.xlsx)
+postprocess_dir: postprocess   # points.xlsx, convergence.xlsx and maps/<case>.png
 results_dir: results           # results copied back here (one folder per case, done.json when finished)
 run_dir: null                  # local folder where SWAN runs (e.g. C:/SWAN_RUNS/my_project); null → <results>/../_run
 archive_dir: null              # local folder for heavy outputs not copied to results (maps with store: archive)
-executable: auto               # path to swan_omp.exe / swan.exe, or auto (searched in search_dirs)
+executable: auto               # path to swan_omp.exe / swan.exe, a list (one per computer: the first that exists),
+                               # or auto (searched in search_dirs, then the PATH). SWAN_EXE, if set, takes precedence
 search_dirs: ["C:/Program Files/Deltares", "C:/SWAN"]
 threads: null                  # OpenMP threads (null → all cores)
 timeout_hours: 3               # per grid and case
@@ -70,8 +82,17 @@ states:
   columns: {Hs: Hs, Tp: Tp, Dir: DirM, Vv: Vv, DirV: DirV, spreading: null, level: null}
   min_wind: 0.01               # wind speeds below this are raised to it (SWAN 41.51 fails with 0 m/s)
 
-# Optional variants: every state is run with each variant (case name <id>_<variant>).
-variants: {}
+# Optional variants: every state is run with each variant (case name <id>_<variant>). Best in a table:
+variants_file: null            # e.g. variants.xlsx: column 'variant' + one column per changed key written with dots
+                               # (physics.wcap, boundary_spectrum.spreading_value, numerics.accur…); empty cell = base
+                               # value; 'off' removes a command. Adding variants renames the cases (<id>_<variant>)
+variants: {}                   # or here (both can be used)
 #  S1: {}
 #  S0: {physics: {wcap: WCAP KOMEN delta=1}}
 #  D2: {boundary_spectrum: {spreading_value: 2.0}}
+
+postprocess:
+  maps:                        # figures of the saved maps (outputs: maps) of these cases → postprocess_dir/maps/<case>.png
+    cases: []                  # e.g. [caso_001, caso_253]; maps with store: archive are only on the computing machine
+    quantity: null             # hs, tps, dir… (null → the first saved quantity)
+

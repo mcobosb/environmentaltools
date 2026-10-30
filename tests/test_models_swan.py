@@ -141,3 +141,85 @@ def test_archive_maps_and_figures(project, tmp_path):
     assert swan.run(cfg, cases=["1"], force=True, verbose=False).ok.all()
     with pytest.raises(ValueError):
         swan.load_config(project.file, {"outputs": {"maps": {"inner": {"quantities": ["HSIGN"], "store": "archive"}}}})
+
+
+def _fake_swan(tmp_path):
+    exe = tmp_path / "fake_swan"
+    exe.write_text("#!/bin/sh\n"
+                   "for f in $(grep -o \"'[a-z_]*\\.\\(tab\\|sp2\\)'\" INPUT | tr -d \"'\"); do printf '  1.0 2.0 0.5\\n  3.0 4.0 0.7\\n' > $f; done\n"
+                   "printf ' iteration 3; sweep 4\\n accuracy OK in  98.00 %% of wet grid points ( 97.00 %% required)\\n' > PRINT\n")
+    exe.chmod(0o755)
+    return exe
+
+
+def test_prepare_only_redoes_what_changed(project, tmp_path):
+    """A second prepare keeps everything; a changed state updates only its cases; overwrite keeps the results."""
+    cfg = swan.load_config(project.file, {"variants": {}, "executable": str(_fake_swan(tmp_path)),
+                                          "outputs": {"point_quantities": ["XP", "YP", "HSIGN"]}})
+    assert set(swan.prepare(cfg, verbose=False)["status"]) == {"created"}
+    assert cfg.overview_file.exists()
+    swan.run(cfg, verbose=False)
+    assert set(swan.prepare(cfg, verbose=False)["status"]) == {"kept"}
+    assert set(swan.prepare(cfg, overwrite=True, verbose=False)["status"]) == {"kept"}
+    assert (cfg.results_dir / "1" / "done.json").exists()                   # same content: result kept
+
+    states = pd.read_csv(tmp_path / "states.csv")
+    states.loc[states.id == 2, "Hs"] = 3.5
+    states.to_csv(tmp_path / "states.csv", index=False)
+    status = swan.prepare(cfg, verbose=False).set_index("case")["status"]
+    assert status["2"] == "updated" and status["1"] == "kept"
+    assert not (cfg.results_dir / "2" / "done.json").exists() and (cfg.results_dir / "1" / "done.json").exists()
+    assert list(swan.run(cfg, verbose=False)["case"]) == ["2"]
+
+    # a change of the grids/points (_common) updates every case
+    pd.DataFrame({"name": ["A"], "x": [5000.0], "y": [6000.0]}).to_csv(tmp_path / "points.csv", index=False)
+    assert set(swan.prepare(cfg, verbose=False)["status"]) == {"updated"}
+
+
+def test_variants_table(project, tmp_path):
+    pd.DataFrame({"variant": ["S1", "S0", "D2"], "description": ["base", "Komen delta 1", ""],
+                  "physics.wcap": [None, "WCAP KOMEN delta=1", None], "physics.setup": [None, "off", None],
+                  "boundary_spectrum.spreading_value": [None, None, 2]}).to_excel(tmp_path / "variants.xlsx", index=False)
+    cfg = swan.load_config(project.file, {"variants": {}, "variants_file": "variants.xlsx"})
+    assert cfg["variants"] == {"S1": {}, "S0": {"physics": {"wcap": "WCAP KOMEN delta=1", "setup": None}},
+                               "D2": {"boundary_spectrum": {"spreading_value": 2}}}
+    man = swan.prepare(cfg, verbose=False)
+    assert sorted(man["case"]) == ["1_D2", "1_S0", "1_S1", "2_D2", "2_S0", "2_S1"]
+    text = (cfg.cases_dir / "1_S0" / "INPUT_1_outer").read_text(encoding="latin-1")
+    assert "WCAP KOMEN delta=1" in text and "SETUP" not in text
+    overview = pd.read_excel(cfg.overview_file, sheet_name=None)
+    assert {"cases", "variants", "grids", "legend"} <= set(overview)
+    v = overview["variants"].set_index("parameter")
+    assert v.loc["physics.wcap", "S0"] == "WCAP KOMEN delta=1" and v.loc["physics.wcap", "base"] == "WCAP KOMEN delta=0"
+    with pytest.raises(ValueError):                       # same variant in the YAML and in the table
+        swan.load_config(project.file, {"variants": {"S1": {}}, "variants_file": "variants.xlsx"})
+
+
+def test_postprocess_and_command_line(project, tmp_path):
+    from environmentaltools.models.swan.__main__ import main
+
+    import yaml
+
+    f = tmp_path / "swan_cli.yaml"
+    f.write_text(yaml.safe_dump({**yaml.safe_load(project.file.read_text()), "variants": {},
+                                 "executable": str(_fake_swan(tmp_path)),
+                                 "outputs": {**yaml.safe_load(project.file.read_text())["outputs"], "maps": {},
+                                             "point_quantities": ["XP", "YP", "HSIGN"]}}))
+    main(["all", str(f)])
+    cfg = swan.load_config(f)
+    pts = pd.read_excel(cfg.postprocess_dir / "points.xlsx")
+    assert len(pts) == 2 * 2 * 2 and {"case", "grid", "point", "hs", "Hs"} <= set(pts.columns)
+    assert len(pd.read_excel(cfg.postprocess_dir / "convergence.xlsx")) == 4
+    assert set(swan.postprocess(cfg, verbose=False)["status"]) == {"up to date"}
+
+
+def test_executable_resolution(project, tmp_path, monkeypatch):
+    exe = _fake_swan(tmp_path)
+    monkeypatch.delenv("SWAN_EXE", raising=False)
+    cfg = swan.load_config(project.file, {"executable": [str(tmp_path / "missing"), str(exe)]})
+    assert swan.swan_executable(cfg) == exe
+    monkeypatch.setenv("SWAN_EXE", str(exe))
+    assert swan.swan_executable(swan.load_config(project.file, {"executable": str(tmp_path / "missing")})) == exe
+    monkeypatch.delenv("SWAN_EXE")
+    with pytest.raises(FileNotFoundError):
+        swan.swan_executable(swan.load_config(project.file, {"executable": str(tmp_path / "missing")}))

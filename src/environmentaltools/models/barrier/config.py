@@ -55,39 +55,6 @@ DEFAULTS = {
 
 #: Keys of a case in the project file.
 CASE_KEYS = {"config", "along_channel", "files"}
-#: Columns of the cases table that are not changes (free text).
-NOTE_COLUMNS = {"description", "notes", "note", "comment", "comments"}
-
-
-def _cell(v):
-    """Value of a cell of the cases table: numbers as numbers (integers without decimals), text parsed as YAML
-    (so ``true``, ``[[0, 10], [5000, 20]]`` or ``2010-01-01T00:00:00`` work), empty → ``None``."""
-    import math
-
-    if v is None or (isinstance(v, float) and math.isnan(v)) or (isinstance(v, str) and not v.strip()):
-        return None
-    if hasattr(v, "isoformat"):                                  # dates typed as dates in Excel
-        return v.isoformat()
-    if isinstance(v, bool):
-        return v
-    if isinstance(v, (int, float)):
-        return int(v) if float(v).is_integer() else float(v)
-    if hasattr(v, "item"):                                       # numpy scalars
-        return _cell(v.item())
-    text = str(v).strip()
-    try:
-        parsed = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return text
-    return parsed if isinstance(parsed, (int, float, bool, list, dict)) and not isinstance(parsed, str) else text
-
-
-def _set(d, keys, value):
-    for k in keys[:-1]:
-        d = d.setdefault(k, {})
-    d[keys[-1]] = value
-
-
 def read_cases_table(file_name, sheet_name=None):
     """Read the cases table (xlsx or csv): one row per case, one column per change of the base case.
 
@@ -115,43 +82,25 @@ def read_cases_table(file_name, sheet_name=None):
     """
     import pandas as pd
 
-    f = Path(file_name)
-    if f.suffix.lower() in (".xlsx", ".xls"):
-        sheets = pd.ExcelFile(f).sheet_names
-        df = pd.read_excel(f, sheet_name=sheet_name or ("cases" if "cases" in sheets else sheets[0]))
-    else:
-        df = pd.read_csv(f)
-    df.columns = [str(c).strip() for c in df.columns]
-    if "case" not in df:
-        raise ValueError(f"{f.name}: the cases table needs a 'case' column")
-    cases = {}
-    for _, row in df.iterrows():
-        name = _cell(row["case"])
-        if name is None:
-            continue
-        name = str(name)
-        if name in cases:
-            raise ValueError(f"{f.name}: case '{name}' appears twice")
-        case = {}
-        for col, v in row.items():
-            value = _cell(v)
-            if col == "case" or value is None or col.lower() in NOTE_COLUMNS or col.startswith("_"):
-                continue
-            if col.startswith("files."):
-                _set(case, ["files", col[len("files."):]], str(value))
-                continue
-            keys = col.split(".")
-            if keys[0] == "along_channel":
-                if len(keys) != 3:
-                    raise ValueError(f"{f.name}: column '{col}' must be along_channel.<column>.<option>")
-                if keys[2] == "file":
-                    pts = pd.read_csv(f.parent / str(value))
-                    keys, value = keys[:2] + ["points"], pts.iloc[:, :2].to_numpy(dtype=float).tolist()
-                _set(case, keys, value)
-            else:
-                _set(case, ["config", *(keys[1:] if keys[0] == "config" else keys)], value)
-        cases[name] = case
-    return cases
+    from ..common.tables import read_changes_table, set_nested
+
+    def column(col, value, case, f):
+        if col.startswith("files."):
+            set_nested(case, ["files", col[len("files."):]], str(value))
+            return True
+        keys = col.split(".")
+        if keys[0] == "along_channel":
+            if len(keys) != 3:
+                raise ValueError(f"{f.name}: column '{col}' must be along_channel.<column>.<option>")
+            if keys[2] == "file":
+                pts = pd.read_csv(f.parent / str(value))
+                keys, value = keys[:2] + ["points"], pts.iloc[:, :2].to_numpy(dtype=float).tolist()
+            set_nested(case, keys, value)
+            return True
+        set_nested(case, ["config", *(keys[1:] if keys[0] == "config" else keys)], value)
+        return True
+
+    return read_changes_table(file_name, "case", sheet_name, "cases", column)
 
 #: Keys of a case ``config.yaml`` that name input files (relative to the case folder).
 FILE_KEYS = [
