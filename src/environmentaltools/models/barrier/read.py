@@ -33,7 +33,8 @@ def read_output(nc):
     """Open a BARRIER NetCDF output.
 
     Adds the coordinates ``date`` (on ``time``, from the global attribute
-    ``time_offset``) and ``km`` (on ``x``, distance to the mouth in km).
+    ``time_offset``) and ``km`` (on ``x``, distance to the mouth in km) and, when the output has the
+    bank coordinates, the variable ``W`` (see :func:`bank_width`).
 
     Args:
         nc (str | Path): NetCDF file, or a folder (its newest output is read).
@@ -49,7 +50,33 @@ def read_output(nc):
     ds = ds.assign_coords(date=("time", start + pd.to_timedelta(ds["time"].values, unit="s")),
                           km=("x", distance_to_mouth(ds["x"].values)))
     ds.attrs["source_file"] = str(nc)
+    if BANK_VARIABLES <= set(ds.data_vars):
+        ds["W"] = bank_width(ds)
     return ds
+
+
+BANK_VARIABLES = {"xl_utm_x", "xl_utm_y", "xr_utm_x", "xr_utm_y"}
+
+
+def bank_width(ds):
+    """Width of the water surface between the banks, from the bank coordinates of the output.
+
+    It is the straight distance between the left and right bank points (``xl_utm_*``, ``xr_utm_*``), which
+    BARRIER interpolates in the columns ``xl`` and ``xr`` of the cross-section table with the wetted area:
+    it is the width that goes with ``A`` (``dA/dh``). It is not the column ``B``, which BARRIER uses as width
+    in the celerity ``c = sqrt(g A / B)`` and which can differ from ``xr - xl`` if the table was not built
+    consistently. Equal to ``xr - xl`` when both banks lie on one straight line.
+
+    Args:
+        ds (xr.Dataset): Output with ``xl_utm_x``, ``xl_utm_y``, ``xr_utm_x`` and ``xr_utm_y``.
+
+    Returns:
+        xr.DataArray: Width (m), dimensions ``(time, x)``.
+    """
+    w = np.hypot(ds["xr_utm_x"] - ds["xl_utm_x"], ds["xr_utm_y"] - ds["xl_utm_y"])
+    return w.assign_attrs(long_name="Water surface width between banks (xr - xl, the width that goes with A; not the column B of the geometry)", units="m",
+                          description="Distance between the left and right bank points (xr - xl), the width that "
+                                      "goes with A; not the column B of the cross-sections")
 
 
 def time_step_hours(ds):
