@@ -4,7 +4,8 @@ Everything is set in the ``postprocess`` section of the project file; see
 ``barrier_template.yaml``. For each finished case (and for an external reference
 output, if there is one) the folder ``postprocess_dir/<case>/`` gets:
 
-- ``timeseries.xlsx``: one sheet per variable (one column per point) and the points used;
+- ``timeseries.xlsx``: one sheet per variable (one column per point), the points used and (``forcings``)
+  the boundary forcings: discharge at the upstream boundary and level at the mouth;
 - ``timeseries_<variable>.png``: one panel per point, raw series and tidal mean;
 - ``along_channel_<variable>.png``: the variable in every section against time;
 - with a ``reference``: ``vs_<reference>.xlsx`` (differences per variable and per
@@ -127,8 +128,19 @@ def postprocess_output(ds, label, out_dir, points=None, settings=None, reference
             plot_point_series(series[var], _label(ds, var), f"{_label(ds, var).capitalize()} · {label}",
                               s.get("window_hours"), file_name=out_dir / f"timeseries_{var}.png")
         sheets = {var: series[var].round(4).reset_index() for var in variables}
+        forcing_legend = {}
+        if s.get("forcings", True):
+            sheets["forcings"] = boundary_forcings(ds).round(4).reset_index()
+            forcing_legend = {
+                "sheet forcings": "Boundary forcings at each output time, read from the output (equal to the imposed "
+                                  "series; the first time is the initial state)",
+                "Q_upstream": f"Discharge at the upstream boundary, section 0 (m³/s; km {float(ds['km'].values[0]):g} "
+                              "to the mouth)",
+                "eta_mouth": f"Free surface elevation at the mouth, last section (m; km {float(ds['km'].values[-1]):g})",
+            }
         write_tables(out_dir / TIMESERIES, {**sheets, "points": pts}, legend={
             **{f"sheet {v}": f"{_label(ds, v)} at each point and output time" for v in variables},
+            **forcing_legend,
             "date": f"Date and time (start of the simulation: {ds.attrs.get('time_offset', '')})",
             "columns": "One per point: 'name (km to the mouth of the section used)'",
             "sheet points": "Points asked for and section of the model used (the closest one)",
@@ -139,6 +151,24 @@ def postprocess_output(ds, label, out_dir, points=None, settings=None, reference
         write_tables(out_dir / TIMESERIES, {"info": pd.DataFrame({"item": ["output"], "value": [source]})})
     plt.close("all")
     return summary
+
+
+def boundary_forcings(ds):
+    """Boundary forcings of a BARRIER output: discharge at the upstream boundary and level at the mouth.
+
+    BARRIER imposes the discharge at the first section (``x = 0``) and the level at the last one (the
+    mouth), so the output at those sections reproduces the imposed series at the output times
+    (the discharge interpolated between its input values). The first output time is the initial state.
+
+    Args:
+        ds (xr.Dataset): Output read with :func:`~environmentaltools.models.barrier.read_output`.
+
+    Returns:
+        pd.DataFrame: Indexed by ``date``, columns ``Q_upstream`` (m³/s) and ``eta_mouth`` (m).
+    """
+    dates = pd.DatetimeIndex(ds["date"].values, name="date")
+    return pd.DataFrame({"Q_upstream": ds["Q"].isel(x=0).values, "eta_mouth": ds["eta"].isel(x=-1).values},
+                        index=dates)
 
 
 def _is_up_to_date(out_dir, sources):

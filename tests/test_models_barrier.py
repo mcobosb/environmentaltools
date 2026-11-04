@@ -169,6 +169,15 @@ def test_read_output_and_points(tmp_path):
     np.testing.assert_allclose(series["S"].iloc[0], [30, 0])
 
 
+def test_boundary_forcings():
+    ds = fake_output()
+    f = barrier.boundary_forcings(ds)
+    assert list(f.columns) == ["Q_upstream", "eta_mouth"]
+    np.testing.assert_allclose(f["Q_upstream"], ds["Q"].isel(x=0).values)    # upstream boundary: section 0
+    np.testing.assert_allclose(f["eta_mouth"], ds["eta"].isel(x=-1).values)   # mouth: last section
+    assert f.index[1] == pd.Timestamp("2008-05-01 01:00")
+
+
 def test_tidal_mean_removes_tide():
     t = np.arange(24 * 10)
     sig = 2 + np.sin(2 * np.pi * t / 12.42) + np.sin(2 * np.pi * t / 23.93)
@@ -264,7 +273,8 @@ def test_workflow_prepare_run_postprocess(base_case, tmp_path, monkeypatch):
     assert (tmp_path / "post" / "rough" / "vs_ref.xlsx").exists()
     assert not (tmp_path / "post" / "ref" / "vs_ref.xlsx").exists()   # no comparison of the reference with itself
     series = pd.read_excel(tmp_path / "post" / "rough" / "timeseries.xlsx", sheet_name=None)
-    assert {"eta", "S", "points", "legend"} <= set(series)
+    assert {"eta", "S", "forcings", "points", "legend"} <= set(series)
+    assert list(series["forcings"].columns) == ["date", "Q_upstream", "eta_mouth"]
     assert list(series["S"].columns) == ["date", "Mouth (km 0)", "Up (km 9)"]
     overview = pd.read_excel(project.overview_file, sheet_name=None)
     stats = overview["section_parameters"].set_index(["parameter", "statistic"])

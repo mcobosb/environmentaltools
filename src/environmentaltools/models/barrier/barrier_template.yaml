@@ -49,7 +49,9 @@ postprocess:
   points: null                  # series at these points: a file (xlsx/csv), a list of {name, km} or {name: km};
                                 # km = distance to the mouth. Example: {Mouth: 0, Gauge A: 20, Gauge B: 60}
   points_columns: {name: name, km: km}   # column names in the points file
-  variables: [eta, S]           # variables of the series (any (time, x) variable of the output)
+  variables: [eta, S]           # variables of the series (any (time, x) variable of the output, e.g. A for the area)
+  forcings: true                # sheet 'forcings' in timeseries.xlsx: discharge at the upstream boundary and level
+                                # at the mouth, read from the output (they equal the imposed series)
   reference: null               # compare every case with: {case: reference} (a case of the list) or
                                 # {file: other_run.nc, name: label} (any BARRIER output, also processed)
   tolerances: null              # {variable: largest difference taken as 'equal'}; null → eta 0.005, Q 1, S 0.05, A 1

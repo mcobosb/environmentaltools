@@ -46,7 +46,7 @@ from .run import barrier_executable, has_time_steps, is_readable, run, run_case
 from .read import (COMPARE_TOLERANCES, compare, distance_to_mouth, extract_points, latest_output,
                    nearest_sections, read_output, read_project, tidal_mean, time_step_hours)
 from .plot import plot_along_channel, plot_comparison, plot_point_series, plot_section_parameters
-from .postprocess import load_points, postprocess, postprocess_output
+from .postprocess import boundary_forcings, load_points, postprocess, postprocess_output
 
 TEMPLATE = Path(__file__).with_name("barrier_template.yaml")
 
@@ -60,5 +60,5 @@ __all__ = [
     "COMPARE_TOLERANCES", "read_output", "latest_output", "distance_to_mouth", "time_step_hours", "tidal_mean",
     "nearest_sections", "extract_points", "compare", "read_project",
     "plot_point_series", "plot_along_channel", "plot_comparison", "plot_section_parameters",
-    "load_points", "postprocess", "postprocess_output",
+    "load_points", "postprocess", "postprocess_output", "boundary_forcings",
 ]

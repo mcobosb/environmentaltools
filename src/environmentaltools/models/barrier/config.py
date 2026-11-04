@@ -43,6 +43,7 @@ DEFAULTS = {
         "points": None,
         "points_columns": {"name": "name", "km": "km"},
         "variables": ["eta", "S"],
+        "forcings": True,
         "reference": None,
         "tolerances": None,
         "stations_km": None,
