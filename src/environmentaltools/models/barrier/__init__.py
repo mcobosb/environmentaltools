@@ -42,7 +42,7 @@ from .inputs import (CROSS_SECTION_COLUMNS, MONOTONIC, check_cross_sections, fix
                      section_profile, set_section_parameter, write_csv, write_series, write_tributaries)
 from .cases import (cases_overview, cases_to_table, create_case, folder_signature, prepare, write_cases_table,
                     write_overview)
-from .run import barrier_executable, has_time_steps, is_readable, run, run_case
+from .run import barrier_executable, first_nan_time, has_time_steps, is_readable, run, run_case
 from .read import (COMPARE_TOLERANCES, bank_width, compare, distance_to_mouth, extract_points, latest_output,
                    nearest_sections, read_output, read_project, tidal_mean, time_step_hours)
 from .plot import plot_along_channel, plot_comparison, plot_point_series, plot_section_parameters
@@ -56,7 +56,7 @@ __all__ = [
     "CROSS_SECTION_COLUMNS", "MONOTONIC", "read_csv", "write_csv", "write_series", "write_tributaries",
     "section_profile", "set_section_parameter", "check_cross_sections", "fix_cross_sections",
     "create_case", "prepare", "cases_overview", "write_overview", "folder_signature",
-    "barrier_executable", "has_time_steps", "is_readable", "run_case", "run",
+    "barrier_executable", "first_nan_time", "has_time_steps", "is_readable", "run_case", "run",
     "COMPARE_TOLERANCES", "read_output", "bank_width", "latest_output", "distance_to_mouth", "time_step_hours", "tidal_mean",
     "nearest_sections", "extract_points", "compare", "read_project",
     "plot_point_series", "plot_along_channel", "plot_comparison", "plot_section_parameters",

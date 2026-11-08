@@ -63,14 +63,28 @@ def folder_signature(folder, skip=CASE_EXTRAS):
     return signature(folder, skip)
 
 
-def _changed(case_dir, variant, base_sig):
-    """Why an existing case folder no longer matches its entry of the list (``None`` if it does)."""
+def _sha1(path):
+    return hashlib.sha1(Path(path).read_bytes()).hexdigest()
+
+
+def _changed(case_dir, variant, base_sig, files=None):
+    """Why an existing case folder no longer matches its entry of the list (``None`` if it does).
+
+    ``files`` (``{name in the case: source file}``): the replacement files of the entry; a case is also out of date
+    when one of them changed after the case was created (same name in the list, new content).
+    """
     saved = case_dir / "variant.json"
-    if not saved.exists() or json.loads(saved.read_text()) != json.loads(json.dumps(variant, default=str)):
+    # compared as JSON text: in Python True == 1, so the dicts would not tell `dry_bed: true` from `dry_bed: 1`
+    canon = lambda d: json.dumps(d, sort_keys=True)     # noqa: E731
+    if not saved.exists() or canon(json.loads(saved.read_text())) != canon(json.loads(json.dumps(variant, default=str))):
         return "changed in the list"
     sig = case_dir / "base_signature.txt"
     if not sig.exists() or sig.read_text() != base_sig:
         return "the base case changed"
+    for name, src in (files or {}).items():
+        copy = case_dir / name
+        if not copy.exists() or not Path(src).exists() or _sha1(copy) != _sha1(src):
+            return f"the file {name} changed"
     return None
 
 
@@ -151,7 +165,7 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     """Create (or update) one case folder per case of a project in ``cases_dir``.
 
     Each case is a copy of ``base_case`` with the changes of its entry. A case whose
-    entry or base case changed since it was created is created again and its result is
+    entry, base case or replacement files (``files``) changed since it was created is created again and its result is
     marked as pending (its ``done.json`` is removed), so :func:`run` runs it again.
     Unchanged cases are kept as they are.
 
@@ -185,8 +199,9 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     for name, v in project["variants"].items():
         case_dir = root / name
         status = "created"
+        files = {k: project.path(f) for k, f in (v.get("files") or {}).items()}
         if case_dir.exists():
-            why = "overwrite" if overwrite else _changed(case_dir, v, base_sig)
+            why = "overwrite" if overwrite else _changed(case_dir, v, base_sig, files)
             if why is None:
                 status = "kept"
             else:
@@ -195,7 +210,6 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
                 if verbose:
                     print(f"{name}: {why} → created again; its result is pending")
         if status != "kept":
-            files = {k: project.path(f) for k, f in (v.get("files") or {}).items()}
             create_case(case_dir, project.base_case, v.get("config"), v.get("along_channel"), files, overwrite=True)
             (case_dir / "variant.json").write_text(json.dumps(v, indent=1, default=str))
             (case_dir / "base_signature.txt").write_text(base_sig)

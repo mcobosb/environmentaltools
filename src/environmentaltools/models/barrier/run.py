@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from ..common.execution import describe_return_code, run_process
@@ -41,6 +42,24 @@ def is_readable(nc):
         return True
     except (OSError, RuntimeError):
         return False
+
+
+def first_nan_time(nc, variable="eta"):
+    """Time (s since the start) of the first output step with a non-finite ``variable``, or ``None`` if there is none.
+
+    BARRIER may finish "successfully" after the solution blew up (e.g. a section that dries out with
+    ``dry_bed: false``): every later step is NaN. Such an output is readable but useless.
+    """
+    import netCDF4
+
+    with netCDF4.Dataset(nc) as ds:
+        if variable not in ds.variables:
+            return None
+        v = ds.variables[variable]
+        for t in range(v.shape[0]):
+            if not np.all(np.isfinite(np.ma.filled(v[t], np.nan))):
+                return float(ds.variables["time"][t])
+    return None
 
 
 def barrier_executable(executable=None):
@@ -115,6 +134,10 @@ def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_
     if not is_readable(nc):
         raise RuntimeError(f"BARRIER output {nc.name} is damaged (some time steps cannot be read). If it was written "
                            "in a synced folder or on /mnt/c from WSL, run with a local work_dir")
+    bad = first_nan_time(nc)
+    if bad is not None:
+        raise RuntimeError(f"BARRIER output {nc.name} has NaN from t = {bad / 3600:.2f} h on (the solution blew up; "
+                           f"see the log in {out_dir})")
     if verbose:
         print(f"  done in {(time.time() - started) / 60:.1f} min: {nc.name}")
     return nc
