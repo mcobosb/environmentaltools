@@ -169,6 +169,10 @@ def run(project, cases=None, force=False, verbose=True):
     pending = todo if force else [c for c in todo if not is_done(project, c)]
     if verbose:
         print(f"BARRIER: {exe}\nCases: {len(todo)} | pending: {len(pending)}")
+        own = {c: project.case_executable(c)[0] for c in pending}
+        for c, name in own.items():
+            if name is not None:
+                print(f"  {c}: build '{name}'")
     log = []
     for k, case in enumerate(pending, 1):
         res = project.results_dir / case
