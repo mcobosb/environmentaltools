@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..common.execution import describe_return_code, run_process
+from ..common.execution import describe_return_code, resolve_executable, run_process
 
 
 def has_time_steps(nc):
@@ -177,12 +177,16 @@ def run(project, cases=None, force=False, verbose=True):
         row = {"case": case, "start": datetime.now().isoformat(timespec="seconds")}
         t0 = time.time()
         try:
-            nc = run_case(project.cases_dir / case, res, exe, timeout, work_dir=project.work_dir,
+            name, case_exe = project.case_executable(case)
+            # a case with its own build ignores BARRIER_EXE (it would run every case with the same build)
+            case_exe = exe if name is None else resolve_executable(case_exe, None, model=f"BARRIER '{name}'")
+            row.update(executable=str(case_exe))
+            nc = run_case(project.cases_dir / case, res, case_exe, timeout, work_dir=project.work_dir,
                           verbose=False)
             row.update(ok=True, output=nc.name)
             (res / "done.json").write_text(json.dumps({**row, "minutes": round((time.time() - t0) / 60, 2)},
                                                       indent=1))
-        except RuntimeError as exc:
+        except (RuntimeError, FileNotFoundError) as exc:
             row.update(ok=False, error=str(exc))
         row["minutes"] = round((time.time() - t0) / 60, 2)
         log.append(row)

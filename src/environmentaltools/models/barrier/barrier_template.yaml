@@ -20,6 +20,9 @@ postprocess_dir: postprocess    # one folder per case: timeseries.xlsx and figur
 
 executable: null                # BARRIER executable, or a list (one per computer: the first that exists is used).
                                 # The environment variable BARRIER_EXE, if set, takes precedence; null → 'barrier' on the PATH
+executables: {}                 # other BARRIER builds by name, for the cases with `executable: <name>` (column
+                                # `executable` of the table), e.g. {centroid: [/mac/barrier, /wsl/barrier]}. Those
+                                # cases ignore BARRIER_EXE; changing a case's build makes prepare and run redo it
 work_dir: null                  # true → BARRIER writes in the system temporary folder and its files are moved to
                                 # results_dir at the end. Set it when results_dir is synced (Synology, OneDrive) or
                                 # on /mnt/c from WSL: writing the NetCDF there can corrupt it

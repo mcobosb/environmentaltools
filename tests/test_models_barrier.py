@@ -363,3 +363,40 @@ def test_cases_table_template_created(base_case, tmp_path):
     with pytest.raises(ValueError):
         pd.DataFrame({"case": ["a", "a"]}).to_excel(tmp_path / "dup.xlsx", index=False)
         barrier.read_cases_table(tmp_path / "dup.xlsx")
+
+
+def test_case_executable(base_case, tmp_path, monkeypatch):
+    """A case can run with another BARRIER build (a name of `executables` or a path), also from the table."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    exe_a, exe_b = fake_barrier(tmp_path / "a"), fake_barrier(tmp_path / "b")
+    monkeypatch.setenv("BARRIER_EXE", str(exe_a))              # the project build; ignored by cases with their own
+    pd.DataFrame({"case": ["alt"], "executable": ["other"]}).to_excel(tmp_path / "cases.xlsx", index=False)
+    cfg = {"base_case": str(base_case), "cases_dir": "cases", "results_dir": "results", "executable": str(exe_a),
+           "executables": {"other": [str(tmp_path / "missing_barrier"), str(exe_b)]},
+           "cases_file": "cases.xlsx", "cases": {"ref": {}}}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump(cfg))
+    project = barrier.load_project(f)
+    assert project.case_executable("ref")[0] is None
+    assert project.case_executable("alt") == ("other", [tmp_path / "missing_barrier", exe_b])
+    barrier.prepare(project, verbose=False, figures=False)
+    params = pd.read_excel(project.overview_file, sheet_name="parameters").set_index("parameter")
+    assert params.loc["(executable)", "alt"] == "other" and params.loc["(executable)", "ref"] == "(project)"
+    log = barrier.run(project, verbose=False).set_index("case")
+    assert log["ok"].all()
+    assert log.loc["ref", "executable"] == str(exe_a) and log.loc["alt", "executable"] == str(exe_b)
+    assert json.loads((tmp_path / "results" / "alt" / "done.json").read_text())["executable"] == str(exe_b)
+
+    # changing the build of a case makes it pending again
+    pd.DataFrame({"case": ["alt"], "executable": [str(exe_a)]}).to_excel(tmp_path / "cases.xlsx", index=False)
+    project = barrier.load_project(f)
+    assert barrier.prepare(project, verbose=False, figures=False).set_index("case")["status"]["alt"] == "updated"
+    assert list(barrier.run(project, verbose=False)["case"]) == ["alt"]
+
+    cfg["cases"]["bad"] = {"executable": "nowhere"}
+    f.write_text(yaml.safe_dump(cfg))
+    project = barrier.load_project(f)
+    barrier.prepare(project, verbose=False, figures=False)
+    log = barrier.run(project, verbose=False).set_index("case")
+    assert not log.loc["bad", "ok"] and "not found" in log.loc["bad", "error"]

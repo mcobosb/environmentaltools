@@ -7,9 +7,12 @@ postprocessing, so that the whole workflow runs from it (prepare → run → pos
 
     base_case: base           # case folder used as starting point
     executable: null          # BARRIER executable or list of candidates (null → BARRIER_EXE or PATH)
+    executables:              # other builds, by name, for the cases that say `executable: <name>`
+      centroid: [/path/on/mac/barrier, /path/on/wsl/barrier]
     cases:
       reference: {}
       rough:
+        executable: centroid  # optional: another build (a name of `executables`, or a path)
         config: {hydrodynamics: {courant_number: 0.2}}
         along_channel: {nmann: {scale: 1.1}}
         files: {tides.csv: tides_2010.csv}
@@ -30,6 +33,7 @@ from ..swan.config import deep_merge
 #: Defaults of a BARRIER project file.
 DEFAULTS = {
     "executable": None,
+    "executables": {},
     "base_case": None,
     "cases_dir": "cases",
     "results_dir": "results",
@@ -55,7 +59,7 @@ DEFAULTS = {
 }
 
 #: Keys of a case in the project file.
-CASE_KEYS = {"config", "along_channel", "files"}
+CASE_KEYS = {"config", "along_channel", "files", "executable"}
 def read_cases_table(file_name, sheet_name=None):
     """Read the cases table (xlsx or csv): one row per case, one column per change of the base case.
 
@@ -69,6 +73,8 @@ def read_cases_table(file_name, sheet_name=None):
       ``along_channel.<column>.file`` reads the ``points`` from a csv (columns x, value) next to the table.
     - ``files.<name in the case>``: file that replaces that input (relative to the table), e.g.
       ``files.tides.csv`` = ``tides_2010.csv``.
+    - ``executable``: BARRIER build of the case, a name of ``executables`` in the project file (or a path);
+      empty → the project ``executable``.
     - Anything else is a key of BARRIER's ``config.yaml`` written with dots, e.g.
       ``hydrodynamics.courant_number`` or ``run.end_date`` (``config.`` in front is optional).
 
@@ -88,6 +94,9 @@ def read_cases_table(file_name, sheet_name=None):
     def column(col, value, case, f):
         if col.startswith("files."):
             set_nested(case, ["files", col[len("files."):]], str(value))
+            return True
+        if col == "executable":
+            case["executable"] = str(value)
             return True
         keys = col.split(".")
         if keys[0] == "along_channel":
@@ -261,6 +270,21 @@ class BarrierProject:
             return [self.path(e) for e in exe]
         return self.path(exe)
 
+    def case_executable(self, case):
+        """Executable of a case: its ``executable`` (a name of ``executables`` or a path), else the project one.
+
+        Returns:
+            tuple: ``(name, executable)``; ``name`` is ``None`` for the project executable, and ``executable`` is
+            what :func:`~environmentaltools.models.barrier.barrier_executable` takes (a path or a list).
+        """
+        name = self.data["variants"][case].get("executable")
+        if not name:
+            return None, self.executable
+        exe = self.data["executables"].get(name, name)
+        if isinstance(exe, (list, tuple)):
+            return name, [self.path(e) for e in exe]
+        return name, self.path(exe)
+
     @property
     def case_names(self):
         return list(self.data["variants"])
@@ -274,7 +298,8 @@ class BarrierProject:
         for name, v in d["variants"].items():
             unknown = set(v) - CASE_KEYS
             if unknown:
-                raise ValueError(f"Case '{name}': unknown keys {sorted(unknown)} (use config, along_channel, files)")
+                raise ValueError(f"Case '{name}': unknown keys {sorted(unknown)} (use config, along_channel, files, "
+                                 "executable)")
         ref = d["postprocess"].get("reference") or {}
         if ref and not (("case" in ref) ^ ("file" in ref)):
             raise ValueError("postprocess: reference needs either 'case' (a case of the list) or 'file' (a NetCDF)")

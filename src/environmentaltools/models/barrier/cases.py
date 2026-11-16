@@ -156,6 +156,8 @@ def write_cases_table(file_name, cases=None, descriptions=None):
                                            "next to this table, used as points)",
         "files.<name in the case>": "File that replaces that input of the base case (relative to this table), e.g. "
                                     "files.tides.csv = tides_2010.csv",
+        "executable": "BARRIER build of the case: a name of 'executables' in the project file (or a path); empty → "
+                      "the project executable",
         "<key.of.config.yaml>": "Any key of BARRIER's config.yaml written with dots, e.g. hydrodynamics.courant_number, "
                                 "run.end_date (2010-03-01T00:00:00), transport.salinity.beta",
     })
@@ -253,7 +255,8 @@ def cases_overview(project):
 
     Returns:
         dict: Three DataFrames with a ``base`` column and one column per case:
-        ``parameters`` (every value of ``config.yaml``, one row per key), ``files`` (input
+        ``parameters`` (the BARRIER build, ``(executable)``, and every value of ``config.yaml``, one row per key),
+        ``files`` (input
         files; ``(DIFFERENT)`` when the content is not that of the base case) and
         ``section_parameters`` (min, mean and max along the channel of n, Kh, Sf and β).
     """
@@ -262,6 +265,9 @@ def cases_overview(project):
     flat = {n: _flatten(read_config(d)) for n, d in folders.items()}
     keys = list(dict.fromkeys(k for f in flat.values() for k in f))
     parameters = pd.DataFrame({"parameter": keys, **{n: [f.get(k, "") for k in keys] for n, f in flat.items()}})
+    exe_row = {"parameter": "(executable)", "base": "(project)",
+               **{n: project["variants"][n].get("executable") or "(project)" for n in list(folders)[1:]}}
+    parameters = pd.concat([pd.DataFrame([exe_row]), parameters], ignore_index=True)
 
     base_hashes = _file_hashes(project.base_case)
     rows = []
