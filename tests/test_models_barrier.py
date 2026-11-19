@@ -400,3 +400,16 @@ def test_case_executable(base_case, tmp_path, monkeypatch):
     barrier.prepare(project, verbose=False, figures=False)
     log = barrier.run(project, verbose=False).set_index("case")
     assert not log.loc["bad", "ok"] and "not found" in log.loc["bad", "error"]
+
+
+def test_set_section_parameter_km_and_scale_list():
+    along = pd.DataFrame({"x": np.arange(0.0, 10001.0, 1000.0), "kh": np.full(11, 100.0)})
+    # x = 10000 m is the mouth (km 0); x = 0 is km 10
+    out = barrier.set_section_parameter(along, "kh", scale=[[0, 0.5], [4, 0.5], [6, 2.0], [10, 2.0]], coordinate="km")
+    km = (10000 - along["x"]) / 1000
+    assert np.allclose(out["kh"], 100 * np.interp(km, [0, 4, 6, 10], [0.5, 0.5, 2.0, 2.0]))
+    same = barrier.set_section_parameter(along, "kh", points=[[0, 1], [10, 2]], coordinate="km")
+    assert np.allclose(same["kh"], np.interp(km, [0, 10], [1, 2]))
+    assert np.array_equal(barrier.set_section_parameter(along, "kh", scale=1.6)["kh"], along["kh"] * 1.6)
+    with pytest.raises(ValueError):
+        barrier.set_section_parameter(along, "kh", scale=2, coordinate="pk")

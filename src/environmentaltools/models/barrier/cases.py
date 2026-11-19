@@ -149,11 +149,13 @@ def write_cases_table(file_name, cases=None, descriptions=None):
                "case'. Add columns for other changes. After editing, run prepare (it only redoes what changed)",
         "case": "Name of the case (also the name of its folder)",
         "description": "Free text (ignored), as any column starting with '_'",
-        "along_channel.<column>.<option>": "Section parameters (column: nmann, kh, Sf, beta; x in m from the upstream "
-                                           "boundary). Options: value (constant), scale (×), add (+), points "
-                                           "([[x, value], …], interpolated), steps ([[x_from, value], …], by "
-                                           "stretches), sigma (Gaussian smoothing, in sections), file (csv x, value "
-                                           "next to this table, used as points)",
+        "along_channel.<column>.<option>": "Section parameters (column: nmann, kh, Sf, beta). Options: value "
+                                           "(constant), scale (× a number, or [[x, factor], …] interpolated), add "
+                                           "(+), points ([[x, value], …], interpolated), steps ([[x_from, value], "
+                                           "…], by stretches), sigma (Gaussian smoothing, in sections), file (csv x, "
+                                           "value next to this table, used as points), coordinate (x of the lists: "
+                                           "'x' = m from the upstream boundary, the default; 'km' = km from the "
+                                           "mouth)",
         "files.<name in the case>": "File that replaces that input of the base case (relative to this table), e.g. "
                                     "files.tides.csv = tides_2010.csv",
         "executable": "BARRIER build of the case: a name of 'executables' in the project file (or a path); empty → "

@@ -69,7 +69,9 @@ def read_cases_table(file_name, sheet_name=None):
     - ``description`` (or ``notes``, ``comment``) and columns starting with ``_``: free text, ignored.
     - ``along_channel.<column>.<option>``: section parameters (``nmann``, ``kh``, ``Sf``, ``beta``) with the
       options of :func:`~environmentaltools.models.barrier.set_section_parameter`, e.g.
-      ``along_channel.nmann.scale`` = 1.1, ``along_channel.kh.points`` = ``[[0, 10], [50000, 300]]``.
+      ``along_channel.nmann.scale`` = 1.1, ``along_channel.kh.points`` = ``[[0, 10], [50000, 300]]``;
+      with ``along_channel.kh.coordinate`` = ``km`` the positions are km from the mouth, e.g.
+      ``along_channel.kh.scale`` = ``[[0, 0.7], [20, 0.7], [22, 1], [104.85, 1]]``.
       ``along_channel.<column>.file`` reads the ``points`` from a csv (columns x, value) next to the table.
     - ``files.<name in the case>``: file that replaces that input (relative to the table), e.g.
       ``files.tides.csv`` = ``tides_2010.csv``.

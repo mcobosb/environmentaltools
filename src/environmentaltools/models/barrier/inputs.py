@@ -150,7 +150,7 @@ def section_profile(x, value=None, points=None, steps=None, sigma=None, mode="re
 
 
 def set_section_parameter(along, column, value=None, points=None, steps=None, sigma=None, mode="reflect",
-                          scale=None, add=None):
+                          scale=None, add=None, coordinate="x"):
     """Change a parameter of ``along_channel_data`` (``nmann``, ``kh``, ``Sf``, ``beta``…).
 
     The new profile comes from :func:`section_profile` (``value``/``points``/``steps``,
@@ -161,15 +161,27 @@ def set_section_parameter(along, column, value=None, points=None, steps=None, si
         along (pd.DataFrame): Along-channel table (column ``x`` in m).
         column (str): Column to change (created if missing).
         value, points, steps, sigma, mode: See :func:`section_profile`.
-        scale (float | None): Factor applied to the profile.
+        scale (float | list[tuple[float, float]] | None): Factor applied to the profile: one number, or
+            ``(position, factor)`` pairs linearly interpolated (constant beyond the ends), e.g.
+            ``[[0, 0.7], [20, 0.7], [22, 1.3], [48, 1.3], [50, 1], [104.85, 1]]`` with ``coordinate="km"``.
         add (float | None): Amount added to the profile.
+        coordinate (str): Positions of ``points``, ``steps`` and a ``scale`` list: ``"x"`` (m from the
+            upstream boundary, as the table) or ``"km"`` (km from the mouth, the downstream boundary: the
+            ``km`` of :func:`read_output`).
 
     Returns:
         pd.DataFrame: Copy of ``along`` with the new column.
     """
     out = along.copy()
+    x = out["x"].to_numpy(dtype=float)
+    if coordinate == "km":
+        pos = (x.max() - x) / 1000.0
+    elif coordinate == "x":
+        pos = x
+    else:
+        raise ValueError(f"coordinate must be 'x' or 'km', not {coordinate!r}")
     if any(v is not None for v in (value, points, steps)):
-        prof = section_profile(out["x"], value, points, steps, sigma, mode)
+        prof = section_profile(pos, value, points, steps, sigma, mode)
     else:
         if column not in out:
             raise KeyError(f"Column '{column}' not in the along-channel table; give 'value', 'points' or 'steps'")
@@ -179,6 +191,9 @@ def set_section_parameter(along, column, value=None, points=None, steps=None, si
 
             prof = gaussian_filter1d(prof, sigma=sigma, mode=mode)
     if scale is not None:
+        if np.ndim(scale):
+            xp, fp = np.asarray(sorted(scale), dtype=float).T
+            scale = np.interp(pos, xp, fp)
         prof = prof * scale
     if add is not None:
         prof = prof + add
