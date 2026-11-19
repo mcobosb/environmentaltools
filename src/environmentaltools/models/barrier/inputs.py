@@ -19,13 +19,17 @@ MONOTONIC = {"B": 1, "A": 1, "P": 1, "xl": -1, "xr": 1}
 def read_csv(file_name):
     """Read a BARRIER CSV table (header line starting with ``;``).
 
+    Numbers are read exactly (``float_precision="round_trip"``): pandas' default fast parser
+    returns the neighbouring double for some values, so a table read and written back with
+    :func:`write_csv` changed in the last digit even in the columns that were not touched.
+
     Args:
         file_name (str | Path): CSV file.
 
     Returns:
         pd.DataFrame: Table with clean column names.
     """
-    df = pd.read_csv(file_name, low_memory=False)
+    df = pd.read_csv(file_name, low_memory=False, float_precision="round_trip")
     df.columns = [str(c).strip(" ;#") for c in df.columns]
     return df
 

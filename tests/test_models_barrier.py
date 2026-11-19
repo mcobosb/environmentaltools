@@ -413,3 +413,15 @@ def test_set_section_parameter_km_and_scale_list():
     assert np.array_equal(barrier.set_section_parameter(along, "kh", scale=1.6)["kh"], along["kh"] * 1.6)
     with pytest.raises(ValueError):
         barrier.set_section_parameter(along, "kh", scale=2, coordinate="pk")
+
+
+def test_read_write_csv_round_trip(tmp_path):
+    # números que el lector rápido de pandas no lee exactos
+    values = [0.07750888407555664, 1.046186575066534, 21.54459501553473, -4.2700000000000005, 0.1 + 0.2]
+    f = tmp_path / "along_channel_data.csv"
+    barrier.write_csv(pd.DataFrame({"x": np.arange(len(values), dtype=float), "nmann": values}), f)
+    text = f.read_text()
+    barrier.write_csv(barrier.read_csv(f), f)
+    assert f.read_text() == text
+    assert barrier.read_csv(f)["nmann"].tolist() == values
+
