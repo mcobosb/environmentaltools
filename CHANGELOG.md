@@ -31,6 +31,7 @@ All relevant project updates are documented here:
 - Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)
 
 ### Fixed
+- `models.barrier.compare` (and the comparison of `postprocess` with a reference) failed with a `KeyError` when the outputs had no salinity, e.g. a calibration of levels; it now compares the variables both outputs have, and `plot_comparison` leaves out the salinity row (potinar)
 - `models.barrier.load_project`: the `cases` given in `overrides` were silently ignored (only the old name `variants` worked); they are now added to those of the project file (potinar)
 - `models.barrier.run` stopped the whole batch with an `OSError` when the executable could not be started (e.g. a Linux/WSL build on macOS, "Exec format error"); `run_case` now raises a `RuntimeError` that explains it, and `run` marks the case as failed and goes on with the next one (potinar)
 - `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)

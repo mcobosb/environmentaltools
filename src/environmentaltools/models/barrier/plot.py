@@ -138,6 +138,8 @@ def plot_comparison(ref, new, stations_km=(0, 25, 50, 85), zoom_days=None, label
                     window_hours=25, title=None, file_name=None):
     """Two runs at a few stations: water level over a few days and salinity (tidal mean) over the whole run.
 
+    The salinity row is left out when an output has no salinity (e.g. a calibration of levels).
+
     Args:
         ref (xr.Dataset): Reference output.
         new (xr.Dataset): Output compared with it.
@@ -159,23 +161,27 @@ def plot_comparison(ref, new, stations_km=(0, 25, 50, 85), zoom_days=None, label
     zoom = (days >= zoom_days[0]) & (days <= zoom_days[1])
     step = time_step_hours(ref)
     start = pd.Timestamp(ref["date"].values[0])
-    fig, axes = plt.subplots(2, len(idx), figsize=(4 * len(idx), 7.5), sharey="row", squeeze=False)
+    salinity = "S" in ref and "S" in new
+    fig, axes = plt.subplots(2 if salinity else 1, len(idx), figsize=(4 * len(idx), 7.5 if salinity else 4),
+                             sharey="row", squeeze=False)
     for col, i in enumerate(idx):
         for ds, color, ls, name in ((ref, REF_COLOR, "-", labels[0]), (new, NEW_COLOR, "--", labels[1])):
             eta = ds["eta"].isel(x=i, time=slice(0, n)).values
-            sal = ds["S"].isel(x=i, time=slice(0, n)).values
-            if window_hours:
-                sal = tidal_mean(sal, window_hours, step)
             axes[0, col].plot(days[zoom], eta[zoom], color=color, lw=2, ls=ls, label=name)
-            axes[1, col].plot(days, sal, color=color, lw=2, ls=ls, label=name)
+            if salinity:
+                sal = ds["S"].isel(x=i, time=slice(0, n)).values
+                if window_hours:
+                    sal = tidal_mean(sal, window_hours, step)
+                axes[1, col].plot(days, sal, color=color, lw=2, ls=ls, label=name)
         axes[0, col].set_title(f"km {ref['km'].values[i]:.0f} from the mouth", color=INK, fontsize=11)
         axes[0, col].set_xlim(*zoom_days)
         for ax in axes[:, col]:
             _style(ax)
             ax.set_xlabel(f"days since {start:%Y-%m-%d}", color=MUTED, fontsize=9)
     axes[0, 0].set_ylabel(f"water level (m)\ndays {zoom_days[0]:g}-{zoom_days[1]:g}", color=INK)
-    axes[1, 0].set_ylabel(f"tidal-mean salinity (psu)\n{window_hours:g}-h moving mean" if window_hours
-                          else "salinity (psu)", color=INK)
+    if salinity:
+        axes[1, 0].set_ylabel(f"tidal-mean salinity (psu)\n{window_hours:g}-h moving mean" if window_hours
+                              else "salinity (psu)", color=INK)
     handles, names = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, names, frameon=False, fontsize=10, loc="upper right", ncol=2)
     if title:

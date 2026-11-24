@@ -222,6 +222,17 @@ def test_compare():
     np.testing.assert_allclose(sections["rmse_eta"], 0.01)
 
 
+def test_compare_runs_without_salinity():
+    """Runs without salinity (e.g. a calibration of levels) are compared on the variables both outputs have."""
+    ref = fake_output().drop_vars("S")
+    summary, sections = barrier.compare(ref, ref.copy(deep=True))
+    assert list(summary["variable"]) == ["eta", "Q", "A"] and "rmse_S" not in sections
+    with pytest.raises(ValueError, match="No variable to compare"):
+        barrier.compare(ref, ref, tolerances={"S": 0.05})
+    fig = barrier.plot_comparison(ref, ref, stations_km=[0, 5])          # level row only
+    assert len(fig.axes) == 2
+
+
 def test_plots(tmp_path, base_case):
     ds = fake_output()
     points, series = barrier.extract_points(ds, {"a": 0, "b": 5})

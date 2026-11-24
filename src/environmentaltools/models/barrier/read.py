@@ -149,14 +149,18 @@ def compare(ref, new, tolerances=None):
     Args:
         ref (xr.Dataset): Reference output.
         new (xr.Dataset): Output compared with it (same sections).
-        tolerances (dict | None): ``{variable: tolerance}`` (default :data:`COMPARE_TOLERANCES`).
+        tolerances (dict | None): ``{variable: tolerance}`` (default :data:`COMPARE_TOLERANCES`); variables
+            missing in either output are skipped.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame]: Summary per variable (``rmse``, ``max_abs_diff``,
         ``tolerance``, ``within_tolerance``, ``nan_steps_new``, ``steps``) and RMSE per
         section (``section``, ``km``, ``rmse_<variable>``).
     """
-    tolerances = tolerances or COMPARE_TOLERANCES
+    # only the variables of both outputs: a run without salinity (e.g. a calibration of levels) has no S
+    tolerances = {v: t for v, t in (tolerances or COMPARE_TOLERANCES).items() if v in ref and v in new}
+    if not tolerances:
+        raise ValueError("No variable to compare: none of the tolerances is in both outputs")
     if ref.sizes["x"] != new.sizes["x"]:
         raise ValueError(f"Different number of sections: {ref.sizes['x']} and {new.sizes['x']}")
     n = min(ref.sizes["time"], new.sizes["time"])
