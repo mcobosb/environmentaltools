@@ -227,6 +227,25 @@ def test_run_case_in_local_work_dir(tmp_path, base_case):
     assert list(work.iterdir()) == []          # the temporary run folder is removed
 
 
+def test_executable_for_another_system(tmp_path, base_case, monkeypatch):
+    """An executable that the system cannot start (e.g. a Linux build on macOS) fails the case, not the batch."""
+    monkeypatch.delenv("BARRIER_EXE", raising=False)
+    exe = tmp_path / "linux_barrier"
+    exe.write_bytes(b"\x7fELF not for this system")
+    exe.chmod(0o755)
+    with pytest.raises(RuntimeError, match="could not be started"):
+        barrier.run_case(base_case, tmp_path / "out", exe, verbose=False)
+
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case), "executable": str(exe),
+                                 "cases": {"a": {}, "b": {}}}))
+    project = barrier.load_project(f)
+    barrier.prepare(project, overview=False, figures=False, verbose=False)
+    log = barrier.run(project, verbose=False)
+    assert list(log["case"]) == ["a", "b"] and not log["ok"].any()
+    assert log["error"].str.contains("could not be started").all()
+
+
 def fake_barrier(tmp_path):
     """Executable that writes a small BARRIER-like output (11 sections, 2 days) in its working folder."""
     import sys

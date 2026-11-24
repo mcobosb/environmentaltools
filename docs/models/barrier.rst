@@ -53,11 +53,9 @@ Conventions used everywhere in the module:
 Executable and installation
 ---------------------------
 
-**The Python side.** The module is part of ``environmentaltools`` and uses its
-base dependencies (``numpy``, ``pandas``, ``xarray``, ``matplotlib``, ``scipy``,
-``openpyxl``, ``pyyaml``) plus ``netCDF4``, which is not declared in
-``pyproject.toml``: install it if it is missing (``pip install netCDF4``; the
-conda environment already has it).
+**The Python side.** The module is part of ``environmentaltools`` and needs
+nothing beyond its base dependencies (``numpy``, ``pandas``, ``xarray``,
+``netCDF4``, ``matplotlib``, ``scipy``, ``openpyxl``, ``pyyaml``).
 
 **BARRIER.** It is compiled from its repository with CMake. It needs a C++20
 compiler, ``netcdf`` and ``yaml-cpp`` (found with ``pkg-config``) and,
@@ -499,8 +497,9 @@ Open ``results/<case>/barrier_console.txt``. Typical causes:
 boundary sections, "Total computation time: 0.00 s"): the TVD limiter is
 disabled. Set ``hydrodynamics.tvd_limiter.enabled: true``.
 
-**"Exec format error"** (``OSError``, ``run`` stops): the executable was built
-for another system (e.g. a Linux build from WSL on macOS). Give one path per
+**"BARRIER could not be started (Exec format error)"**: the executable was
+built for another system (e.g. a Linux build from WSL on macOS). The case is
+marked as failed and ``run`` goes on with the next one. Give one path per
 computer in ``executable`` (list) or set ``BARRIER_EXE``.
 
 **"No BARRIER executable"**: neither ``BARRIER_EXE``, ``executable`` nor

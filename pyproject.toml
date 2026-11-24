@@ -52,6 +52,7 @@ dependencies = [
     "loguru",
     "lxml",
     "matplotlib",
+    "netCDF4",  # models/barrier: checks of the NetCDF outputs
     "numpy",
     "openpyxl",
     "pandas",

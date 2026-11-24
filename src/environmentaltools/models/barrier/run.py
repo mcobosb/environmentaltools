@@ -105,7 +105,8 @@ def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_
         Path: The NetCDF output.
 
     Raises:
-        RuntimeError: If BARRIER fails or writes no valid output.
+        RuntimeError: If BARRIER cannot be started (e.g. a build for another system), fails or writes no
+            valid output.
     """
     exe = barrier_executable(executable)
     config = Path(case_dir).resolve() / "config.yaml"
@@ -120,6 +121,9 @@ def run_case(case_dir, out_dir, executable=None, timeout=None, console="barrier_
     started = time.time()
     try:
         rc = run_process([exe, config], run_dir, log_file=run_dir / console, timeout=timeout)
+    except OSError as exc:   # e.g. "Exec format error": a build for another system (a Linux/WSL build on macOS)
+        raise RuntimeError(f"BARRIER could not be started ({exc.strerror}): {exe}. Is it built for this "
+                           "computer? Give one executable per computer (a list) or set BARRIER_EXE") from exc
     finally:
         if work_dir:   # move everything BARRIER wrote, also after a failure (for the screen output)
             for f in run_dir.iterdir():

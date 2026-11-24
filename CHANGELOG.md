@@ -20,12 +20,14 @@ All relevant project updates are documented here:
 - `models.barrier`: BARRIER 1-D estuarine model for any channel: cases from a base case with config and along-channel parameter changes (constant, interpolated, stepwise, Gaussian-smoothed), boundary and tributary files, cross-section monotonicity check and fix, optional YAML project with variants, resumable runner, NetCDF reader with dates and distance to the mouth, series at points, tidal mean, comparison of runs and figures; validated against the Guadalquivir calibration of M. Cobos (potinar)
 
 ### Changed
+- `netCDF4` declared as a dependency (used by `models.barrier` to check the NetCDF outputs; it only came in through `intake-esgf` and `pyTMD`) (potinar)
 - `models.barrier`: the list of cases of the project file is `cases` (`variants` still accepted); the environment variable `BARRIER_EXE` takes precedence over the configured executable (potinar)
 - model readers/writers/runners moved from `common`, `processes` and `graphics` to `models`; the old names are deprecated aliases (removal in 4.0) (potinar)
 - `processes` split by topic: `waves`, `coastal`, `hydrology`, `properties` (`processes.compute` kept for compatibility) (potinar)
 - Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)
 
 ### Fixed
+- `models.barrier.run` stopped the whole batch with an `OSError` when the executable could not be started (e.g. a Linux/WSL build on macOS, "Exec format error"); `run_case` now raises a `RuntimeError` that explains it, and `run` marks the case as failed and goes on with the next one (potinar)
 - `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
 - `read_copla` discarded the `grid` passed to it (potinar)
 - `kobayashi_transport` works in a local cross-shore frame (normal to the isobaths, in the sense of the waves), as CSHORE; it takes the bed slope components `Sbx`, `Sby`; validated against CSHORE runs (example in 12_TESTs/cshore_perfil_simple) (potinar)
