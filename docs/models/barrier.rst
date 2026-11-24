@@ -283,6 +283,38 @@ a map. The report, the warnings and ``along_channel_data.csv`` are those of
 :func:`build_geometry`. The minimal example below uses it.
 
 
+Starting a base case
+~~~~~~~~~~~~~~~~~~~~
+
+With the geometry in place, :func:`new_base_case` writes the rest of a base
+case that runs: a commented ``config.yaml`` and the boundary series
+(``tides.csv``, ``discharge.csv``)::
+
+    barrier.new_base_case("base_case", "2020-01-01", "2020-03-01",
+                          tide={"amplitude": 1.0},   # or a series (by date or seconds), or a constant level
+                          discharge=50,              # or a series
+                          salinity=36.0)             # sea salinity (psu); None: no salinity
+
+The ``config.yaml`` (from ``environmentaltools/models/barrier/config_template.yaml``)
+has what BARRIER needs and does not check by itself (see `Common problems`_):
+``initial_conditions`` (water at rest at 0 m) and ``forcing``, the TVD limiter
+enabled, wetting and drying, the level at the mouth and the discharge
+upstream and, with ``salinity``, sea water entering at the mouth and fresh
+water upstream (``dispersion_kh``: ``kh``, 100 m²/s, where
+``along_channel_data.csv`` has no ``kh`` column). ``courant_number`` is 0.3;
+lower it (0.15) if a run blows up. It warns when a series does not cover the
+run or the geometry files are missing; it does not overwrite an existing
+``config.yaml`` (``overwrite=True``). :func:`harmonic_tide` gives the
+synthetic tide (one constituent starting at the mean level, as BARRIER starts
+with the water at 0 m).
+
+The run starts with the water at rest and, with salinity, fresh everywhere:
+leave a spin-up period before the period of analysis (days for the tide, weeks
+or months for the salt). With these settings the Guadalquivir geometry (806
+sections) runs 5 days of real tide and discharge in 40 s, and the salt has
+entered only 25 km after them.
+
+
 From the project file
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -613,7 +645,9 @@ reproduce the series and RMSE of the project scripts, and a case written by
 **Minimal example.** A 20 km rectangular channel, 300 m wide and 5 m deep,
 with an M2 tide of 1 m at the mouth, 50 m³/s from upstream and ocean salinity
 36 psu. Two cases: the base case and Manning n × 1.2. It writes everything
-(base case, project file) and runs the whole workflow in a few seconds:
+(the geometry with :func:`prismatic_geometry`, the ``config.yaml`` and the
+series with :func:`new_base_case`, the project file) and runs the whole
+workflow in a few seconds:
 
 .. literalinclude:: barrier_files/minimal_example.py
    :language: python
@@ -621,11 +655,11 @@ with an M2 tide of 1 m at the mouth, 50 m³/s from upstream and ocean salinity
 Expected result (BARRIER, MacCormack build of November 2026): the tide reaches
 the head with a slight amplification (±1.1 m at km 10), the salinity stays
 between 0 and 36 psu, and the rougher case differs from the reference by up to
-8 cm in level (RMSE 4 cm) and 0.66 psu in salinity (RMSE)::
+8 cm in level (RMSE 4 cm) and 0.73 psu in salinity (RMSE)::
 
-        case status  rmse_eta     rmse_Q   rmse_S     rmse_A
-   reference   done       NaN        NaN      NaN        NaN
-       rough   done  0.040025  29.053917  0.65889  12.007401
+        case status  rmse_eta     rmse_Q    rmse_S     rmse_A
+   reference   done       NaN        NaN       NaN        NaN
+       rough   done  0.040162  29.362417  0.732982  12.048507
 
 Run it to see the figures: ``postprocess/rough/vs_reference.png`` (level over
 the first days and tidal-mean salinity at four stations, both cases) and
@@ -644,13 +678,14 @@ Open ``results/<case>/barrier_console.txt``. Typical causes:
   section ``hydrodynamics.forcing`` must exist, even without tributaries
   (``forcing: {tributaries_file: null}``). The same happens without
   ``hydrodynamics.initial_conditions`` (``initial_conditions: {type: calm}``).
+  :func:`new_base_case` writes both.
 - A header line without ``;`` in an input series: BARRIER stops instead of
   reading it as (0, 0). Write the files with :func:`write_csv` /
   :func:`write_series`.
 
 **The tide does not enter the channel** (the level changes only at the
 boundary sections, "Total computation time: 0.00 s"): the TVD limiter is
-disabled, which is BARRIER's default. Set
+disabled, which is BARRIER's default (:func:`new_base_case` enables it). Set
 ``hydrodynamics.tvd_limiter.enabled: true``. ``prepare`` warns about it
 (``Warning: hydrodynamics.tvd_limiter.enabled is not true … (cases: …)``).
 

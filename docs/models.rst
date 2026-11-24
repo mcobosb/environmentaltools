@@ -214,6 +214,8 @@ problems): :doc:`models/barrier`.
    build_geometry
    prismatic_geometry
    prepare_geometry
+   new_base_case
+   harmonic_tide
    read_axis
    read_xyz
    section_lines

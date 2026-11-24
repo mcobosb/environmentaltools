@@ -675,3 +675,40 @@ def test_all_builds_the_geometry_first(base_case, tmp_path, monkeypatch):
     case_cs = barrier.read_csv(tmp_path / "cases" / "ref" / "cross-sections.csv")
     assert case_cs["B"].max() == 100                                        # the case has the new geometry
     assert (tmp_path / "results" / "ref" / "done.json").exists()
+
+
+# ------------------------------------------------------------------ starter base case
+def test_new_base_case_writes_a_case_that_runs(tmp_path, capsys):
+    """config.yaml with the settings BARRIER needs (none of check_config), series covering the run."""
+    case = tmp_path / "base"
+    barrier.prismatic_geometry(10000, dx=1000, bottom_width=100, bed=-5, top_level=3, out_dir=case, verbose=False)
+    barrier.new_base_case(case, "2020-01-01", "2020-01-03", tide={"amplitude": 1.0}, discharge=50)
+    cfg = barrier.read_config(case)
+    assert barrier.check_config(cfg) == []
+    assert cfg["hydrodynamics"]["initial_conditions"]["type"] == "calm" and "forcing" in cfg["hydrodynamics"]
+    assert cfg["transport"]["salinity"]["enabled"] is True and "S" in cfg["run"]["output_variables"]
+    assert all(f.exists() for f in barrier.input_files(case, cfg).values())
+    tide = barrier.read_csv(case / "tides.csv")
+    assert tide.iloc[0, 1] == 0.0 and tide.iloc[:, 1].max() == pytest.approx(1.0, abs=1e-3)   # starts at the mean
+    assert tide.iloc[-1, 0] == 2 * 86400
+    q = barrier.read_csv(case / "discharge.csv")
+    assert q.iloc[:, 1].eq(50).all() and q.iloc[-1, 0] == 2 * 86400
+    assert "still missing" not in capsys.readouterr().out
+    with pytest.raises(FileExistsError):
+        barrier.new_base_case(case, "2020-01-01", "2020-01-03", tide=0.0, discharge=50)
+
+
+def test_new_base_case_options(tmp_path, capsys):
+    """No salinity, dated series converted to seconds, warnings for short series and missing geometry."""
+    dates = pd.date_range("2020-01-01", "2020-01-02", freq="h")
+    tide = pd.Series(np.linspace(0, 1, len(dates)), index=dates)
+    case = barrier.new_base_case(tmp_path / "c", "2020-01-01", "2020-01-03", tide=tide, discharge=10.0,
+                                 salinity=None, courant_number=0.15)
+    cfg = barrier.read_config(case)
+    assert cfg["transport"]["salinity"]["enabled"] is False and "S" not in cfg["run"]["output_variables"]
+    assert cfg["hydrodynamics"]["courant_number"] == 0.15
+    assert barrier.read_csv(case / "tides.csv").iloc[-1, 0] == 86400
+    out = capsys.readouterr().out
+    assert "tides.csv does not cover the whole run" in out and "still missing" in out
+    with pytest.raises(ValueError, match="Series or a number"):
+        barrier.new_base_case(tmp_path / "d", "2020-01-01", "2020-01-03", tide=0, discharge={"amplitude": 1})

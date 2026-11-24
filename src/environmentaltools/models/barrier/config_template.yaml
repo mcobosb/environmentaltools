@@ -1,0 +1,46 @@
+# BARRIER configuration of a base case, written by environmentaltools.models.barrier.new_base_case.
+# Edit it as needed; the cases of a project are this base case plus the changes of their row.
+# Every option: https://github.com/mcobosb/Barrier (src/yaml_reader.cpp).
+run:
+  name: "$name"
+  start_date: "$start_date"
+  end_date: "$end_date"
+  timestep: $timestep                 # output interval (s)
+  output_variables: $output_variables
+  log_level: 0                        # 1 also writes a log file
+
+geometry:                             # build them with build_geometry, prismatic_geometry or the step 'geometry'
+  along_channel_file: along_channel_data.csv
+  cross_sections_file: cross-sections.csv
+
+hydrodynamics:
+  initial_conditions:                 # required (BARRIER stops without it)
+    type: calm                        # water level 0 m and Q = 0 everywhere at the start: spin-up needed
+  boundary_conditions:
+    upstream:                         # first section (x = 0)
+      type: discharge
+      file: $discharge_file           # seconds since start_date, m3/s
+    downstream:                       # last section (the mouth)
+      type: elevation
+      file: $tide_file                # seconds since start_date, m, same vertical datum as the geometry
+  forcing:                            # required, even without tributaries
+    tributaries_file:                 # lateral inflows (write_tributaries); empty: none
+  courant_number: $courant_number     # lower it (0.15) if the solution blows up
+  tvd_limiter:                        # keep it enabled: without it BARRIER does not change the interior of the channel
+    enabled: true
+    method: minmod
+    psi_formula: tseng
+    delta: 0.3
+  dry_bed: true                       # wetting and drying of the sections
+
+transport:
+  salinity:
+    enabled: $salinity_enabled
+    dispersion_kh: $kh                # m2/s, where along_channel_data.csv has no kh column (calibration parameter)
+    boundary_conditions:
+      upstream:
+        type: 1                       # 1: fixed value (fresh water); 0: free
+        value: 0.0
+      downstream:
+        type: ocean                   # sea water entering on the flood
+        value: $ocean_salinity        # psu
