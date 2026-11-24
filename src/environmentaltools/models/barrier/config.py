@@ -177,6 +177,26 @@ def start_date(config):
     return pd.Timestamp(config["run"]["start_date"])
 
 
+def check_config(config):
+    """Settings of a case ``config.yaml`` that give a wrong result although BARRIER ends without error.
+
+    Without the TVD limiter (``hydrodynamics: tvd_limiter: enabled: true``, off by default) BARRIER leaves
+    the interior of the channel as it starts: only the boundary sections change, and the run still ends
+    "successfully" (seen with the builds of November 2026).
+
+    Args:
+        config (dict): Configuration (see :func:`read_config`).
+
+    Returns:
+        list[str]: One message per problem (empty if there is none).
+    """
+    problems = []
+    if not _get(config, ("hydrodynamics", "tvd_limiter", "enabled")):
+        problems.append("hydrodynamics.tvd_limiter.enabled is not true: BARRIER will only change the boundary "
+                        "sections (the tide does not enter the channel)")
+    return problems
+
+
 class BarrierProject:
     """BARRIER project configuration (``barrier.yaml``).
 

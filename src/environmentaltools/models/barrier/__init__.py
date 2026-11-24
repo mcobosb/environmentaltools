@@ -36,8 +36,8 @@ The pieces can also be used one by one (``create_case``, ``run_case``,
 
 from pathlib import Path
 
-from .config import (BarrierProject, input_files, load_project, read_cases_table, read_config, start_date,
-                     write_config)
+from .config import (BarrierProject, check_config, input_files, load_project, read_cases_table, read_config,
+                     start_date, write_config)
 from .inputs import (CROSS_SECTION_COLUMNS, MONOTONIC, check_cross_sections, fix_cross_sections, read_csv,
                      section_profile, set_section_parameter, write_csv, write_series, write_tributaries)
 from .cases import (cases_overview, cases_to_table, create_case, folder_signature, prepare, write_cases_table,
@@ -52,7 +52,7 @@ TEMPLATE = Path(__file__).with_name("barrier_template.yaml")
 
 __all__ = [
     "BarrierProject", "load_project", "read_cases_table", "cases_to_table", "write_cases_table",
-    "read_config", "write_config", "input_files", "start_date", "TEMPLATE",
+    "read_config", "write_config", "input_files", "start_date", "check_config", "TEMPLATE",
     "CROSS_SECTION_COLUMNS", "MONOTONIC", "read_csv", "write_csv", "write_series", "write_tributaries",
     "section_profile", "set_section_parameter", "check_cross_sections", "fix_cross_sections",
     "create_case", "prepare", "cases_overview", "write_overview", "folder_signature",

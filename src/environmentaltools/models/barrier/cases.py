@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..swan.config import deep_merge
-from .config import input_files, read_config, write_config
+from .config import check_config, input_files, read_config, write_config
 from .inputs import read_csv, set_section_parameter, write_csv
 
 
@@ -178,6 +178,8 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     ``figures``, ``section_parameters.png`` (n, Kh, Sf and β of the case against the base).
     With ``overview``, the base case and all the cases side by side are written to
     ``project.overview_file`` (see :func:`cases_overview`) to review them before running.
+    Settings known to give a wrong result (:func:`~environmentaltools.models.barrier.config.check_config`) are
+    printed as warnings, also without ``verbose``.
 
     Args:
         project (BarrierProject): Project configuration.
@@ -199,7 +201,7 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     root.mkdir(parents=True, exist_ok=True)
     base_sig = folder_signature(project.base_case)
     base_along = _along_channel(project.base_case) if figures else None
-    rows = []
+    rows, problems = [], {}
     for name, v in project["variants"].items():
         case_dir = root / name
         status = "created"
@@ -227,8 +229,12 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
             plt.close("all")
         rows.append({"case": name, "folder": str(case_dir), "status": status,
                      "changes": json.dumps(v, default=str)})
+        for msg in check_config(read_config(case_dir)):
+            problems.setdefault(msg, []).append(name)
         if verbose:
             print(f"{name}: {status}")
+    for msg, names in problems.items():
+        print(f"Warning: {msg} (cases: {', '.join(names)})")
     others = sorted(p.name for p in root.iterdir() if p.is_dir() and p.name not in project["variants"])
     if others and verbose:
         print(f"Folders no longer in the list (not removed): {', '.join(others)}")

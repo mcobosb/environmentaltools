@@ -144,6 +144,19 @@ def test_project_prepare(base_case, tmp_path):
         barrier.load_project({"base_case": "b", "variants": {"v": {"bad": 1}}})
 
 
+def test_prepare_warns_without_tvd_limiter(base_case, tmp_path, capsys):
+    """Without the TVD limiter BARRIER does not change the interior of the channel: prepare warns, also quietly."""
+    assert barrier.check_config(barrier.read_config(base_case))                 # the fixture has no tvd_limiter
+    assert barrier.check_config({"hydrodynamics": {"tvd_limiter": {"enabled": True}}}) == []
+    tvd = {"config": {"hydrodynamics": {"tvd_limiter": {"enabled": True}}}}
+    off = {"config": {"hydrodynamics": {"tvd_limiter": {"enabled": False}}}}
+    project = barrier.load_project({"base_case": str(base_case), "cases_dir": str(tmp_path / "cases"),
+                                    "cases": {"base": {}, "tvd": tvd, "off": off}})
+    barrier.prepare(project, overview=False, figures=False, verbose=False)
+    warnings = [line for line in capsys.readouterr().out.splitlines() if line.startswith("Warning:")]
+    assert len(warnings) == 1 and "tvd_limiter" in warnings[0] and warnings[0].endswith("(cases: base, off)")
+
+
 def test_template_loads():
     project = barrier.load_project(barrier.TEMPLATE)
     assert project.cases_file.name == "cases.xlsx" and project.case_names == []

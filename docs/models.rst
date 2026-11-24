@@ -199,6 +199,7 @@ problems): :doc:`models/barrier`.
    postprocess_output
    load_points
    read_config
+   check_config
    input_files
    read_csv
    write_csv

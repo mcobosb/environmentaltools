@@ -249,7 +249,9 @@ with ``along_channel.kh.coordinate = km`` multiplies Kh by 0.7 in the first
   case is out of date (its row, the base case or a replacement file changed),
   ``section_parameters.png`` (n, Kh, Sf and β against the base case) and
   ``cases_overview.xlsx`` (every ``config.yaml`` value and input file side by
-  side, differences in orange). **Review the overview before running.**
+  side, differences in orange). **Review the overview before running.** It
+  also warns about settings known to give a wrong result without an error
+  (:func:`check_config`).
 - :func:`run` runs the cases without ``done.json``, one after the other, and
   keeps ``results_dir/run_log.csv``. A run is accepted only if it writes a new
   NetCDF with time steps, readable in full and without NaN.
@@ -495,7 +497,9 @@ Open ``results/<case>/barrier_console.txt``. Typical causes:
 
 **The tide does not enter the channel** (the level changes only at the
 boundary sections, "Total computation time: 0.00 s"): the TVD limiter is
-disabled. Set ``hydrodynamics.tvd_limiter.enabled: true``.
+disabled, which is BARRIER's default. Set
+``hydrodynamics.tvd_limiter.enabled: true``. ``prepare`` warns about it
+(``Warning: hydrodynamics.tvd_limiter.enabled is not true … (cases: …)``).
 
 **"BARRIER could not be started (Exec format error)"**: the executable was
 built for another system (e.g. a Linux build from WSL on macOS). The case is
