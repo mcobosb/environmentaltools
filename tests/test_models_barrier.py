@@ -570,3 +570,32 @@ def test_read_xyz_with_and_without_header(tmp_path):
     for f in ("a.xyz", "b.csv"):
         df = barrier.read_xyz(tmp_path / f)
         assert list(df.columns) == ["x", "y", "z"] and df["z"].tolist() == [-3.5, 1.0]
+
+
+def test_prismatic_geometry_matches_the_dem_one():
+    """The analytic trapezoid gives the tables taken from a DEM of the same channel (above the bed row)."""
+    kw = dict(dx=1000, top_level=2, level_step=0.5, verbose=False)
+    dem, _, _ = barrier.build_geometry(trapezoid_points(), [[0, 0], [10000, 0]], half_width=250, profile_step=1, **kw)
+    cs, along, report = barrier.prismatic_geometry(10000, bottom_width=100, side_slope=10, bed=-5, **kw)
+    assert cs.shape == dem.shape and list(along.columns) == barrier.ALONG_COLUMNS[:9]
+    wet = cs["eta"] > 0
+    for col in ("x", "z", "eta", "A", "P", "B", "Rh", "xl", "xr"):
+        np.testing.assert_allclose(cs.loc[wet, col], dem.loc[wet, col], atol=1e-9)
+    assert barrier.check_cross_sections(cs).empty and not report["crosses_next"].any()
+
+
+def test_prismatic_geometry_along_the_channel():
+    """Bed by km to the mouth, exponential convergence of the width, rectangular sections; errors."""
+    cs, along, report = barrier.prismatic_geometry(
+        60000, dx=1000, bottom_width=3000, side_slope=0, bed={"points": [[0, -8], [60, -3]], "coordinate": "km"},
+        top_level=3, convergence_length=20000, kh=100, check_level=0, verbose=False)
+    assert along["z"].iloc[-1] == -8 and along["z"].iloc[0] == -3     # mouth deeper than the upstream end
+    np.testing.assert_allclose(report["width"].iloc[[-1, 0]], [3000, 3000 * np.exp(-3)])
+    mouth = cs[cs["x"] == 60000]
+    np.testing.assert_allclose(mouth["A"], 3000 * mouth["eta"])
+    np.testing.assert_allclose(mouth["P"], 3000 + 2 * mouth["eta"])
+    assert along["kh"].eq(100).all()
+    with pytest.raises(ValueError, match="above the bed"):
+        barrier.prismatic_geometry(1000, dx=100, bottom_width=10, bed=-1, top_level=-2)
+    with pytest.raises(ValueError, match="not both 0"):
+        barrier.prismatic_geometry(1000, dx=100, bottom_width=0, side_slope=0, bed=-1, top_level=2)

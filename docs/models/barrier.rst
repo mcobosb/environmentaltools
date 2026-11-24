@@ -38,7 +38,8 @@ Limitations:
 - **Geometry from tables.** The channel is what ``cross-sections.csv`` and
   ``along_channel_data.csv`` say: one table of area, width and perimeter
   against the level per section, built from a DEM and a channel axis (see
-  `Geometry from a DEM and an axis`_).
+  `Geometry from a DEM and an axis`_) or for an idealised channel (see
+  `Idealised channel`_).
 - **The section average hides processes** that need to be parameterised: salt
   intrusion depends on the longitudinal dispersion ``Kh``, which is a
   calibration parameter, not a result.
@@ -112,16 +113,16 @@ comments). Read and write them with :func:`read_csv` and :func:`write_csv`.
      - One row per section: ``x`` (m), ``z`` bed (m), ``nmann`` (s/m\ :sup:`1/3`),
        ``xutm``, ``yutm`` (m), ``AngMd``, ``AngMi`` (bank angles, radians),
        ``beta``, ``Sf`` (≥ 1, optional), ``kh`` (m²/s, optional).
-     - :func:`build_geometry` (see below), or an existing case. Change the
-       parameters with :func:`set_section_parameter` /
+     - :func:`build_geometry` or :func:`prismatic_geometry` (see below), or
+       an existing case. Change the parameters with :func:`set_section_parameter` /
        :func:`section_profile`, or from the cases table
        (``along_channel.<column>.<option>``).
    * - ``cross-sections.csv`` (``geometry.cross_sections_file``)
      - Several rows per section (same ``x``), one per water depth ``eta``
        (m above the bed): ``x, z, eta, B, A, P, Rh, sigma, xl, xr, beta``
        (``barrier.CROSS_SECTION_COLUMNS``).
-     - :func:`build_geometry` (see below), or an existing case. Check and
-       correct it with :func:`check_cross_sections` and
+     - :func:`build_geometry` or :func:`prismatic_geometry` (see below), or
+       an existing case. Check and correct it with :func:`check_cross_sections` and
        :func:`fix_cross_sections`.
    * - Level at the mouth, e.g. ``tides.csv``
        (``hydrodynamics.boundary_conditions.downstream.file``)
@@ -254,6 +255,32 @@ PRO-2025_P_BARRIER_GUADALQUIVIR, 806 sections) it reproduces its geometry
 exactly (all 262 292 rows) and its smoothed geometry to 1e-10. A geometry built
 from a synthetic DEM of a 20 km S-shaped channel runs in BARRIER with the tide
 entering the whole channel.
+
+
+Idealised channel
+~~~~~~~~~~~~~~~~~
+
+Without a DEM, :func:`prismatic_geometry` writes the same files for a channel
+of rectangular or trapezoidal sections: theoretical studies, sensitivity tests,
+or a first model before the bathymetry is ready. The tables are analytic: with
+water depth ``h``, bottom width ``b`` and side slope ``m`` (horizontal :
+vertical, 0 for rectangular), ``A = b h + m h²``, ``B = b + 2 m h`` and
+``P = b + 2 h √(1 + m²)``. ::
+
+    # 20 km rectangular channel, 300 m wide, bed at -5 m
+    barrier.prismatic_geometry(20000, dx=500, bottom_width=300, bed=-5, top_level=5, out_dir="base_case")
+
+    # convergent estuary: 3 km wide at the mouth, exp(-d / 20 km) upstream; bed from -8 m at the
+    # mouth to -3 m at km 60; trapezoidal banks 1:20
+    barrier.prismatic_geometry(60000, dx=500, bottom_width=3000, side_slope=20, convergence_length=20000,
+                               bed={"points": [[0, -8], [60, -3]], "coordinate": "km"}, top_level=4,
+                               out_dir="base_case")
+
+``bottom_width``, ``side_slope`` and ``bed`` take one number or the options of
+:func:`set_section_parameter` (``points``, ``steps``, ``coordinate``…). The
+axis is straight by default (eastwards); give ``axis`` to place the channel on
+a map. The report, the warnings and ``along_channel_data.csv`` are those of
+:func:`build_geometry`. The minimal example below uses it.
 
 
 Preparing cases and running

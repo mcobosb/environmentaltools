@@ -20,25 +20,10 @@ import yaml  # noqa: E402
 from environmentaltools.models import barrier  # noqa: E402
 
 base = Path("base_case")
-base.mkdir(exist_ok=True)
 
-# along-channel data: one row per section, x from the upstream boundary (0) to the mouth (20 km).
-# BARRIER reads the columns by position: x, z, nmann, xutm, yutm, AngMd, AngMi, beta, Sf, kh
-x = np.arange(0, 20001, 500.0)
-along = pd.DataFrame({"x": x, "z": -5.0, "nmann": 0.025, "xutm": x, "yutm": 0.0,
-                      "AngMd": 0.0, "AngMi": 0.0, "beta": 1.0, "Sf": 1.0, "kh": 100.0})
-barrier.write_csv(along, base / "along_channel_data.csv")
-
-# cross sections: rectangular, 300 m wide, tabulated every 0.25 m of water depth
-width = 300.0
-rows = []
-for xi in x:
-    for depth in np.arange(0, 10.01, 0.25):
-        area, perimeter = width * depth, width + 2 * depth
-        rows.append((xi, -5.0, depth, width, area, perimeter, area / perimeter, width, -width / 2, width / 2, 1.0))
-cs = pd.DataFrame(rows, columns=barrier.CROSS_SECTION_COLUMNS)
-assert barrier.check_cross_sections(cs).empty          # monotonic with the depth
-barrier.write_csv(cs, base / "cross-sections.csv")
+# geometry: rectangular channel 300 m wide and 20 km long, bed at -5 m, tables up to +5 m every 0.25 m
+barrier.prismatic_geometry(20000, dx=500, bottom_width=300, bed=-5, top_level=5, level_step=0.25, nmann=0.025,
+                           kh=100, out_dir=base)
 
 config = {
     "run": {"name": "minimal", "start_date": "2020-01-01T00:00:00", "end_date": "2020-01-05T00:00:00",

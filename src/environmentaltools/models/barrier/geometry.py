@@ -1,6 +1,7 @@
 """Geometry of a BARRIER channel from a DEM (raster or xyz points) and a channel axis.
 
-Builds the two geometry files of a case, ``cross-sections.csv`` and ``along_channel_data.csv``::
+Builds the two geometry files of a case, ``cross-sections.csv`` and ``along_channel_data.csv``, from a DEM and an
+axis (:func:`build_geometry`) or for an idealised rectangular or trapezoidal channel (:func:`prismatic_geometry`)::
 
     cs, along, report = barrier.build_geometry("dem.tif", "axis.shp", dx=200, half_width=2000, top_level=5,
                                                out_dir="base_case")
@@ -346,6 +347,60 @@ def crossing_sections(sections, cs, level=None):
             if lines[i] is not None and lines[i + 1] is not None and lines[i].intersects(lines[i + 1])]
 
 
+def _finish(cs, sections, top_level, check_level, nmann, kh, out_dir, verbose, open_end=None, bed_offset=None):
+    """Along-channel table, report, warnings and files of a geometry (shared by :func:`build_geometry` and
+    :func:`prismatic_geometry`)."""
+    open_end = pd.Series(False, index=sections["x"]) if open_end is None else open_end
+    bed_offset = pd.Series(0.0, index=sections["x"]) if bed_offset is None else bed_offset
+    beds = cs.groupby("x", sort=True)["z"].first()
+    along = pd.DataFrame({"x": sections["x"], "z": sections["x"].map(beds), "nmann": float(nmann),
+                          "xutm": sections["xutm"], "yutm": sections["yutm"], "AngMd": sections["AngMd"],
+                          "AngMi": sections["AngMi"], "beta": 1.0, "Sf": 1.0})
+    if kh is not None:
+        along["kh"] = float(kh)
+
+    level = top_level if check_level is None else check_level
+    tables = dict(tuple(cs.groupby("x", sort=True)))
+    area = np.array([_value_at(tables[x], level, "A") for x in sections["x"]])
+    report = pd.DataFrame({
+        "x": sections["x"], "km": distance_to_mouth(sections["x"]).round(3), "bed": sections["x"].map(beds),
+        "bed_offset": sections["x"].map(bed_offset),
+        "width": [_value_at(tables[x], level, "B") for x in sections["x"]], "area": area,
+        "area_jump": np.r_[np.nan, np.abs(np.diff(np.log(np.where(area > 0, area, np.nan))))],
+        "open_end": sections["x"].map(open_end).to_numpy(dtype=bool)})
+    crossing = set(crossing_sections(sections, cs, level))
+    report["crosses_next"] = report["x"].isin(crossing)
+
+    bad = check_cross_sections(cs)
+    warnings = []
+    if len(bad):
+        warnings.append(f"{bad['x'].nunique()} sections with non-monotonic tables (see check_cross_sections)")
+    if report["open_end"].any():
+        warnings.append(f"{int(report['open_end'].sum())} sections where the water reaches the end of the profile "
+                        f"or a gap of the DEM at {top_level:g} m (give a larger half_width, or check the DEM)")
+    if crossing:
+        warnings.append(f"{len(crossing)} sections cross the next one at {level:g} m (larger axis_smooth or dx): "
+                        f"x = {', '.join(f'{x:g}' for x in sorted(crossing)[:10])}")
+    high = report[report["bed"] >= 0]
+    if len(high):
+        warnings.append(f"{len(high)} sections with the bed at 0 m or above: BARRIER starts with the water level at "
+                        "0 (initial_conditions: calm), so they start dry")
+    for w in warnings:
+        print(f"Warning: {w}")
+
+    if out_dir is not None:
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        write_csv(cs, out_dir / "cross-sections.csv")
+        write_csv(along, out_dir / "along_channel_data.csv")
+    if verbose:
+        print(f"{len(sections)} sections every {np.diff(sections['x']).mean():.1f} m along "
+              f"{sections['x'].iloc[-1] / 1000:.2f} km; bed from {report['bed'].min():.2f} to "
+              f"{report['bed'].max():.2f} m; width at {level:g} m from {report['width'].min():.0f} to "
+              f"{report['width'].max():.0f} m" + (f"; written in {out_dir}" if out_dir is not None else ""))
+    return cs, along, report
+
+
 def build_geometry(dem, axis=None, dx=None, half_width=None, top_level=None, sections=None, profile_step=None,
                    level_step=0.05, bed_half_width=None, axis_smooth=None, smooth=None, downstream_copies=0,
                    nmann=0.03, kh=None, check_level=None, out_dir=None, verbose=True):
@@ -404,53 +459,85 @@ def build_geometry(dem, axis=None, dx=None, half_width=None, top_level=None, sec
         cs = copy_downstream(smooth_sections(cs, smooth, level_step), downstream_copies)
     cs = cs.sort_values(["x", "eta"], kind="mergesort").reset_index(drop=True)
 
-    beds = cs.groupby("x", sort=True)["z"].first()
-    along = pd.DataFrame({"x": sections["x"], "z": sections["x"].map(beds), "nmann": float(nmann),
-                          "xutm": sections["xutm"], "yutm": sections["yutm"], "AngMd": sections["AngMd"],
-                          "AngMi": sections["AngMi"], "beta": 1.0, "Sf": 1.0})
-    if kh is not None:
-        along["kh"] = float(kh)
+    return _finish(cs, sections, top_level, check_level, nmann, kh, out_dir, verbose, open_end, bed_offset)
 
-    level = top_level if check_level is None else check_level
-    tables = dict(tuple(cs.groupby("x", sort=True)))
-    area = np.array([_value_at(tables[x], level, "A") for x in sections["x"]])
-    report = pd.DataFrame({
-        "x": sections["x"], "km": distance_to_mouth(sections["x"]).round(3), "bed": sections["x"].map(beds),
-        "bed_offset": sections["x"].map(bed_offset),
-        "width": [_value_at(tables[x], level, "B") for x in sections["x"]], "area": area,
-        "area_jump": np.r_[np.nan, np.abs(np.diff(np.log(np.where(area > 0, area, np.nan))))],
-        "open_end": sections["x"].map(open_end).to_numpy(dtype=bool)})
-    crossing = set(crossing_sections(sections, cs, level))
-    report["crosses_next"] = report["x"].isin(crossing)
 
-    bad = check_cross_sections(cs)
-    warnings = []
-    if len(bad):
-        warnings.append(f"{bad['x'].nunique()} sections with non-monotonic tables (see check_cross_sections)")
-    if report["open_end"].any():
-        warnings.append(f"{int(report['open_end'].sum())} sections where the water reaches the end of the profile "
-                        f"or a gap of the DEM at {top_level:g} m (give a larger half_width, or check the DEM)")
-    if crossing:
-        warnings.append(f"{len(crossing)} sections cross the next one at {level:g} m (larger axis_smooth or dx): "
-                        f"x = {', '.join(f'{x:g}' for x in sorted(crossing)[:10])}")
-    high = report[report["bed"] >= 0]
-    if len(high):
-        warnings.append(f"{len(high)} sections with the bed at 0 m or above: BARRIER starts with the water level at "
-                        "0 (initial_conditions: calm), so they start dry")
-    for w in warnings:
-        print(f"Warning: {w}")
+def _along_values(x, spec, name):
+    """Value of a parameter at each section: a number, or a dict of options of
+    :func:`~environmentaltools.models.barrier.set_section_parameter` (``points``, ``steps``, ``coordinate``…)."""
+    if isinstance(spec, dict):
+        from .inputs import set_section_parameter
 
-    if out_dir is not None:
-        out_dir = Path(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        write_csv(cs, out_dir / "cross-sections.csv")
-        write_csv(along, out_dir / "along_channel_data.csv")
-    if verbose:
-        print(f"{len(sections)} sections every {np.diff(sections['x']).mean():.1f} m along "
-              f"{sections['x'].iloc[-1] / 1000:.2f} km; bed from {report['bed'].min():.2f} to "
-              f"{report['bed'].max():.2f} m; width at {level:g} m from {report['width'].min():.0f} to "
-              f"{report['width'].max():.0f} m" + (f"; written in {out_dir}" if out_dir is not None else ""))
-    return cs, along, report
+        return set_section_parameter(pd.DataFrame({"x": x}), name, **spec)[name].to_numpy(dtype=float)
+    return np.full(len(x), float(spec))
+
+
+def prismatic_geometry(length=None, dx=None, bottom_width=None, side_slope=0.0, bed=None, top_level=None,
+                       convergence_length=None, axis=None, sections=None, level_step=0.05, downstream_copies=0,
+                       nmann=0.03, kh=None, check_level=None, out_dir=None, verbose=True):
+    """Geometry of an idealised channel (rectangular or trapezoidal sections), without a DEM.
+
+    The table of each section is analytic: with water depth ``h``, bottom width ``b`` and side slope ``m``
+    (horizontal : vertical; 0 is rectangular), ``A = b h + m h²``, ``B = b + 2 m h``, ``P = b + 2 h √(1 + m²)``,
+    ``Rh = A / P``; the banks are symmetric about the axis (``xl = −B/2``, ``xr = B/2``).
+
+    Each of ``bottom_width``, ``side_slope`` and ``bed`` is one number or a dict with the options of
+    :func:`~environmentaltools.models.barrier.set_section_parameter`, e.g. a bed that deepens towards the mouth,
+    ``{"points": [[0, -8], [60, -3]], "coordinate": "km"}`` (km to the mouth), or a width by stretches
+    (``steps``).
+
+    Args:
+        length (float | None): Channel length (m), for a straight axis from ``(0, 0)`` eastwards (the mouth at
+            ``(length, 0)``); not needed with ``axis`` or ``sections``.
+        dx (float): Distance between sections (m).
+        bottom_width (float | dict): Bottom width ``b`` (m).
+        side_slope (float | dict): Side slope ``m`` (horizontal / vertical); 0 = rectangular.
+        bed (float | dict): Bed elevation (m, same datum as the tide).
+        top_level (float): Highest level of the tables (m).
+        convergence_length (float | None): Exponential convergence of the width, as in an idealised estuary:
+            ``b`` is multiplied by ``exp(−d / convergence_length)``, with ``d`` the distance to the mouth (m), so
+            ``bottom_width`` is the width at the mouth.
+        axis: Channel axis instead of the straight one (see :func:`read_axis`), e.g. to place the channel on a map.
+        sections (pd.DataFrame | None): Section lines instead of ``length``/``axis`` and ``dx`` (see
+            :func:`build_geometry`).
+        level_step (float): Vertical step of the tables (m).
+        downstream_copies, nmann, kh, check_level, out_dir: See :func:`build_geometry`.
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: ``cross_sections``, ``along_channel`` and ``report``, as
+        :func:`build_geometry`.
+    """
+    if sections is None:
+        if dx is None:
+            raise ValueError("Give 'dx' (or 'sections')")
+        if axis is None:
+            if length is None:
+                raise ValueError("Give 'length', 'axis' or 'sections'")
+            axis = [[0.0, 0.0], [float(length), 0.0]]
+        sections = section_lines(axis, dx)
+    sections = sections.reset_index(drop=True)
+    if bottom_width is None or bed is None or top_level is None:
+        raise ValueError("Give 'bottom_width', 'bed' and 'top_level'")
+    x = sections["x"].to_numpy(dtype=float)
+    b = _along_values(x, bottom_width, "bottom_width")
+    if convergence_length:
+        b = b * np.exp(-distance_to_mouth(x) * 1000.0 / convergence_length)
+    m = _along_values(x, side_slope, "side_slope")
+    z = _along_values(x, bed, "bed")
+    if np.any(b < 0) or np.any(m < 0) or np.any((b == 0) & (m == 0)):
+        raise ValueError("bottom_width and side_slope must be >= 0 and not both 0")
+    if np.any(z >= top_level):
+        raise ValueError(f"top_level ({top_level:g}) must be above the bed of every section (max {z.max():g})")
+    rows = []
+    for xi, bi, mi, zi in zip(x, b, m, z):
+        h = np.arange(0.0, top_level - zi + level_step / 2, level_step)
+        A, B, P = bi * h + mi * h ** 2, bi + 2 * mi * h, bi + 2 * h * np.sqrt(1 + mi ** 2)
+        rows.append(pd.DataFrame(dict(x=xi, z=zi, eta=h, B=B, A=A, P=P,
+                                      Rh=np.divide(A, P, out=np.zeros_like(A), where=P > 0), sigma=B, xl=-B / 2,
+                                      xr=B / 2, beta=1)))
+    cs = copy_downstream(pd.concat(rows, ignore_index=True), downstream_copies)
+    cs = cs.sort_values(["x", "eta"], kind="mergesort").reset_index(drop=True)
+    return _finish(cs, sections, top_level, check_level, nmann, kh, out_dir, verbose)
 
 
 def plot_geometry(cs, along, dem=None, examples=4, top_level=None, file_name=None):

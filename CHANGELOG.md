@@ -4,6 +4,7 @@ All relevant project updates are documented here:
 
 ## [Unreleased]
 ### Added
+- `models.barrier.prismatic_geometry`: geometry of an idealised channel without a DEM (rectangular or trapezoidal sections with analytic tables; bottom width, side slope and bed constant or along the channel, optional exponential convergence of the width); the minimal example of the guide uses it (same tables and results as before) (potinar)
 - `models.barrier.build_geometry`: `cross-sections.csv` and `along_channel_data.csv` from a DEM (raster or xyz points) and a channel axis given by the user: sections every `dx` normal to the (smoothed) axis with BARRIER's bank angles, tables per level with the wet part connected to the bed, optional smoothing along the channel and copy of the last sections, report and warnings (open sections, crossing sections, jumps of area, beds above 0 m) and `plot_geometry`; the steps are also functions (`section_lines`, `sample_profiles`, `section_table`, `smooth_sections`…). Method of the Guadalquivir geometry (tasks 04 and 06 of PRO-2025_P_BARRIER_GUADALQUIVIR), whose tables it reproduces exactly (potinar)
 - new `models` module: `models.common` (Delft3D/regular grids, process execution) and `models.swan` (YAML-driven SWAN projects: grids, nesting, batch cases and variants, resumable runner, readers of tables/spectra/PRINT, plots) (potinar)
 - `models.delft3d` (raw outputs, NEFIS `.dat` extraction, grid and wave field plots), `models.cshore`, `models.coastalme` and `models.swan_copla` (SWAN → COPLA → Kobayashi workflow) (potinar)
