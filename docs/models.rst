@@ -169,7 +169,9 @@ base case) is created, run and postprocessed again; the rest are kept. Example:
 The geometry (``cross-sections.csv``, ``along_channel_data.csv``) is built
 from a DEM (raster or xyz) and a channel axis with ``build_geometry``, or for
 an idealised rectangular or trapezoidal channel with ``prismatic_geometry``;
-from the project file, with a ``geometry`` section and the step ``geometry``.
+from the project file, with a ``geometry`` section. A starter ``config.yaml``
+with the boundary series comes from ``new_base_case`` or the ``simulation``
+section; both sections are the step ``base``.
 
 Input files are written with every digit: rounding the geometry or the
 along-channel data to 10 significant digits changes the water level by
@@ -216,6 +218,9 @@ problems): :doc:`models/barrier`.
    prepare_geometry
    new_base_case
    harmonic_tide
+   read_series
+   prepare_simulation
+   prepare_base
    read_axis
    read_xyz
    section_lines

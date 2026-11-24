@@ -2,7 +2,7 @@
 # Relative paths are resolved against the folder of this file.
 #
 # Workflow (each step only does what is pending, so it can be run again at any time):
-#   python -m environmentaltools.models.barrier geometry barrier.yaml      geometry of the base case (if 'geometry')
+#   python -m environmentaltools.models.barrier base barrier.yaml          base case from 'geometry' and 'simulation'
 #   python -m environmentaltools.models.barrier prepare barrier.yaml       create/update the cases → review them
 #   python -m environmentaltools.models.barrier run barrier.yaml           run BARRIER in the cases without result
 #   python -m environmentaltools.models.barrier postprocess barrier.yaml   series, figures, comparison
@@ -10,7 +10,7 @@
 #    barrier.prepare(project); barrier.run(project); barrier.postprocess(project))
 
 base_case: base_case            # BARRIER's config.yaml + the CSV files it names; every case starts from it
-geometry: null                  # optional: build the geometry files of the base case (step 'geometry', also in
+geometry: null                  # optional: build the geometry files of the base case (step 'base', also in
                                 # 'all'); null → the base case keeps its own. Two types, with the arguments of
                                 # build_geometry / prismatic_geometry (files relative to this file):
 #  type: dem                     #   from a DEM (raster or xyz) and the channel axis (upstream → mouth)
@@ -28,7 +28,15 @@ geometry: null                  # optional: build the geometry files of the base
 #  bottom_width: 300             #   one number, or {points: [[km, value], ...], coordinate: km}
 #  bed: -5
 #  top_level: 5
-geometry_dir: geometry          # geometry.png, geometry_report.xlsx and geometry_signature.json
+simulation: null                # optional: config.yaml and boundary series of the base case (step 'base'), with the
+                                # arguments of new_base_case; null → the base case keeps its own
+#  start: 2008-07-01
+#  end: 2008-11-30
+#  tide: inputs/tide.csv         #   csv (date or seconds, level m), a number, or {amplitude: 1.0}
+#  discharge: inputs/discharge.csv   # csv (date or seconds, m3/s) or a number
+#  salinity: 36.5                #   psu; null → no salinity
+#  config: {hydrodynamics: {manning_eta: true}}   # any other option of BARRIER's config.yaml
+base_report_dir: base_report    # geometry.png, geometry_report.xlsx, signatures, copies of files edited by hand
 cases_file: cases.xlsx          # THE CASES: one row per case, one column per change of the base case (empty cell = as
                                 # in the base case); its 'legend' sheet explains the columns. If it does not exist,
                                 # prepare creates it with examples. The cases can also (or instead) go under 'cases:' below

@@ -36,7 +36,8 @@ DEFAULTS = {
     "executables": {},
     "base_case": None,
     "geometry": None,
-    "geometry_dir": "geometry",
+    "simulation": None,
+    "base_report_dir": "base_report",
     "cases_dir": "cases",
     "results_dir": "results",
     "postprocess_dir": "postprocess",
@@ -332,6 +333,12 @@ class BarrierProject:
 
             if not isinstance(d["geometry"], dict) or d["geometry"].get("type") not in GEOMETRY_TYPES:
                 raise ValueError(f"geometry: needs 'type', one of {sorted(GEOMETRY_TYPES)}")
+        if d["simulation"]:
+            from .base_case import SIMULATION_KEYS
+
+            unknown = set(d["simulation"]) - SIMULATION_KEYS if isinstance(d["simulation"], dict) else {"?"}
+            if unknown:
+                raise ValueError(f"simulation: unknown keys {sorted(unknown)}; use {sorted(SIMULATION_KEYS)}")
         ref = d["postprocess"].get("reference") or {}
         if ref and not (("case" in ref) ^ ("file" in ref)):
             raise ValueError("postprocess: reference needs either 'case' (a case of the list) or 'file' (a NetCDF)")

@@ -622,7 +622,7 @@ def test_prepare_geometry_only_when_pending(base_case, tmp_path, capsys):
     cs = barrier.read_csv(base_case / "cross-sections.csv")                 # names of the base config.yaml
     np.testing.assert_allclose(cs.loc[cs["x"] == 0, "A"], 100 * cs.loc[cs["x"] == 0, "eta"])
     for name in ("geometry.png", "geometry_report.xlsx", "geometry_signature.json"):
-        assert (tmp_path / "geometry" / name).exists()
+        assert (tmp_path / "base_report" / name).exists()
 
     assert barrier.prepare_geometry(barrier.load_project(f), verbose=False) is None        # nothing changed
     assert barrier.prepare_geometry(barrier.load_project(f, {"geometry": {"bed": -6}}), verbose=False) is not None
@@ -631,7 +631,8 @@ def test_prepare_geometry_only_when_pending(base_case, tmp_path, capsys):
         fh.write("10000,-6,9,1,1,1,1,1,-1,1,1\n")
     project = barrier.load_project(f, {"geometry": {"bed": -6}})
     assert barrier.prepare_geometry(project) is not None
-    assert "changed by hand" in capsys.readouterr().out
+    assert "edited by hand" in capsys.readouterr().out
+    assert (tmp_path / "base_report" / "edited" / "cross-sections.csv").read_text().endswith("1,1,1\n")
     assert barrier.prepare_geometry(project, force=True, verbose=False) is not None
 
 
@@ -687,6 +688,7 @@ def test_new_base_case_writes_a_case_that_runs(tmp_path, capsys):
     assert barrier.check_config(cfg) == []
     assert cfg["hydrodynamics"]["initial_conditions"]["type"] == "calm" and "forcing" in cfg["hydrodynamics"]
     assert cfg["transport"]["salinity"]["enabled"] is True and "S" in cfg["run"]["output_variables"]
+    assert cfg["transport"]["salinity"]["beta"] == 0.00076            # the salt changes the density
     assert all(f.exists() for f in barrier.input_files(case, cfg).values())
     tide = barrier.read_csv(case / "tides.csv")
     assert tide.iloc[0, 1] == 0.0 and tide.iloc[:, 1].max() == pytest.approx(1.0, abs=1e-3)   # starts at the mean
@@ -712,3 +714,72 @@ def test_new_base_case_options(tmp_path, capsys):
     assert "tides.csv does not cover the whole run" in out and "still missing" in out
     with pytest.raises(ValueError, match="Series or a number"):
         barrier.new_base_case(tmp_path / "d", "2020-01-01", "2020-01-03", tide=0, discharge={"amplitude": 1})
+
+
+def test_read_series_formats(tmp_path):
+    (tmp_path / "dated.csv").write_text("date,level\n2020-01-01 00:00,0.5\n2020-01-01 01:00,0.7\n")
+    (tmp_path / "seconds.csv").write_text(";time_seconds,discharge_m3s\n0,10\n3600,12\n")
+    (tmp_path / "spaces.txt").write_text("0 1.5\n600 1.6\n")
+    dated = barrier.read_series(tmp_path / "dated.csv")
+    assert isinstance(dated.index, pd.DatetimeIndex) and dated.tolist() == [0.5, 0.7]
+    assert barrier.read_series(tmp_path / "seconds.csv").index.tolist() == [0.0, 3600.0]
+    assert barrier.read_series(tmp_path / "spaces.txt").tolist() == [1.5, 1.6]
+
+
+def test_prepare_simulation_only_when_pending(tmp_path, capsys):
+    import os
+
+    (tmp_path / "inputs").mkdir()
+    (tmp_path / "inputs" / "tide.csv").write_text("date,level\n2020-01-01,0.0\n2020-01-03,0.0\n")
+    sim = {"start": "2020-01-01", "end": "2020-01-03", "tide": "inputs/tide.csv", "discharge": 20,
+           "salinity": None, "config": {"hydrodynamics": {"manning_eta": True}}}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": "base", "simulation": sim, "cases": {"a": {}}}))
+    assert barrier.prepare_simulation(barrier.load_project(f), verbose=False)
+    cfg = barrier.read_config(tmp_path / "base")
+    assert cfg["hydrodynamics"]["manning_eta"] is True and cfg["hydrodynamics"]["tvd_limiter"]["enabled"] is True
+    assert cfg["transport"]["salinity"]["enabled"] is False
+    assert not barrier.prepare_simulation(barrier.load_project(f), verbose=False)          # up to date
+
+    st = (tmp_path / "inputs" / "tide.csv").stat()                                      # a new tide file
+    os.utime(tmp_path / "inputs" / "tide.csv", ns=(st.st_atime_ns, st.st_mtime_ns + 10 ** 9))
+    assert barrier.prepare_simulation(barrier.load_project(f), verbose=False)
+    with open(tmp_path / "base" / "config.yaml", "a") as fh:                            # edited by hand
+        fh.write("# my change\n")
+    assert barrier.prepare_simulation(barrier.load_project(f))
+    assert "edited by hand" in capsys.readouterr().out
+    assert (tmp_path / "base_report" / "edited" / "config.yaml").read_text().endswith("# my change\n")
+    assert not (tmp_path / "base" / "config.yaml").read_text().endswith("# my change\n")
+
+    off = barrier.load_project(f, {"simulation": {"config": {"hydrodynamics": {"tvd_limiter": {"enabled": False}}}}})
+    barrier.prepare_simulation(off, verbose=False)
+    assert "tvd_limiter.enabled is not true" in capsys.readouterr().out
+
+
+def test_simulation_section_errors(tmp_path):
+    with pytest.raises(ValueError, match="unknown keys \\['tides'\\]"):
+        barrier.load_project({"base_case": "b", "cases": {"a": {}}, "simulation": {"tides": 1}})
+    project = barrier.load_project({"base_case": str(tmp_path / "b"), "cases": {"a": {}},
+                                    "simulation": {"end": "2020-01-02", "tide": 0, "discharge": 1}})
+    with pytest.raises(ValueError, match="missing \\['start'\\]"):
+        barrier.prepare_base(project)
+
+
+def test_project_from_scratch(tmp_path, monkeypatch):
+    """A project file alone (no base case folder): 'all' writes the base case, creates the case and runs it."""
+    from environmentaltools.models.barrier.__main__ import main
+
+    monkeypatch.delenv("BARRIER_EXE", raising=False)
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({
+        "base_case": "base_case", "executable": str(fake_barrier(tmp_path)),
+        "geometry": {"type": "prismatic", "length": 10000, "dx": 1000, "bottom_width": 100, "bed": -5,
+                     "top_level": 2},
+        "simulation": {"start": "2008-05-01", "end": "2008-05-03", "tide": {"amplitude": 1.0}, "discharge": 50},
+        "cases": {"ref": {}}}))
+    main(["all", str(f)])
+    assert barrier.check_config(barrier.read_config(tmp_path / "cases" / "ref")) == []
+    assert (tmp_path / "results" / "ref" / "done.json").exists()
+    assert (tmp_path / "postprocess" / "ref" / "timeseries.xlsx").exists()
+    assert sorted(p.name for p in (tmp_path / "base_report").iterdir() if p.suffix == ".json") == [
+        "geometry_signature.json", "simulation_signature.json"]

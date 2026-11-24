@@ -301,7 +301,9 @@ has what BARRIER needs and does not check by itself (see `Common problems`_):
 enabled, wetting and drying, the level at the mouth and the discharge
 upstream and, with ``salinity``, sea water entering at the mouth and fresh
 water upstream (``dispersion_kh``: ``kh``, 100 m²/s, where
-``along_channel_data.csv`` has no ``kh`` column). ``courant_number`` is 0.3;
+``along_channel_data.csv`` has no ``kh`` column) and the density depending on
+the salinity (``beta: 0.00076`` 1/psu, as in the Guadalquivir; BARRIER's
+default, 0, would leave the salt as a passive tracer). ``courant_number`` is 0.3;
 lower it (0.15) if a run blows up. It warns when a series does not cover the
 run or the geometry files are missing; it does not overwrite an existing
 ``config.yaml`` (``overwrite=True``). :func:`harmonic_tide` gives the
@@ -311,17 +313,18 @@ with the water at 0 m).
 The run starts with the water at rest and, with salinity, fresh everywhere:
 leave a spin-up period before the period of analysis (days for the tide, weeks
 or months for the salt). With these settings the Guadalquivir geometry (806
-sections) runs 5 days of real tide and discharge in 40 s, and the salt has
-entered only 25 km after them.
+sections) runs 5 days of real tide and discharge in about 40 s, and the salt
+has entered only 25 km after them.
 
 
 From the project file
 ~~~~~~~~~~~~~~~~~~~~~
 
-Either geometry can be built from the project file, without code: a
-``geometry`` section with ``type`` (``dem`` or ``prismatic``) and the
-arguments of :func:`build_geometry` or :func:`prismatic_geometry` (files
-relative to the project file):
+The base case can be written from the project file, without code, with two
+optional sections: ``geometry`` (the arguments of :func:`build_geometry` or
+:func:`prismatic_geometry`, with ``type: dem`` or ``type: prismatic``) and
+``simulation`` (the arguments of :func:`new_base_case`). Files are relative to
+the project file:
 
 .. code-block:: yaml
 
@@ -335,25 +338,38 @@ relative to the project file):
      top_level: 5
      smooth: 500
      check_level: 2
+   simulation:
+     start: 2008-07-01
+     end: 2008-11-30
+     tide: inputs/tide.csv        # csv (date or seconds, level), a number, or {amplitude: 1.0}
+     discharge: inputs/discharge.csv
+     salinity: 36.5
+     config:                      # any other option of BARRIER's config.yaml
+       hydrodynamics: {manning_eta: true}
 
 .. code-block:: bash
 
-   python -m environmentaltools.models.barrier geometry barrier.yaml
+   python -m environmentaltools.models.barrier base barrier.yaml
 
-:func:`prepare_geometry` writes ``cross-sections.csv`` and
-``along_channel_data.csv`` in the base case (with the names of its
-``config.yaml``, if it has one), and ``geometry.png``,
-``geometry_report.xlsx`` and ``geometry_signature.json`` in ``geometry_dir``
-(``geometry/`` by default). Like the other steps, it only does what is pending:
-the geometry is built again when the section, the DEM or the axis (size and
-date) change, or when the files of the base case are missing or were edited by
-hand (they belong to the section: edit the section, not the files). Since the
-base case changes, ``prepare`` then creates the cases again. ``--again``
-builds it anyway. ``all`` runs it first when the section exists.
+The step ``base`` (:func:`prepare_base`: :func:`prepare_geometry` and
+:func:`prepare_simulation`) writes in the base case ``cross-sections.csv`` and
+``along_channel_data.csv`` (``geometry``) and ``config.yaml``, ``tides.csv``
+and ``discharge.csv`` (``simulation``). The series files are read with
+:func:`read_series`. ``base_report_dir`` (``base_report/``) gets
+``geometry.png``, ``geometry_report.xlsx`` and the signatures.
+
+Each section **owns its files**, and like the other steps it only does what is
+pending: they are written again when the section or one of its input files
+(size and date) changes, or when they are missing or were edited by hand. An
+edited file is copied to ``base_report/edited`` before it is replaced: change
+the section, not the files (``simulation.config`` takes any option of
+BARRIER). Since the base case changes, ``prepare`` then creates the cases
+again. ``--again`` writes both anyway; ``all`` runs the step first when one of
+the sections exists. Without them the base case is used as it is.
 
 Manning, ``Kh`` and the rest of ``along_channel_data.csv`` are written with
-the values of the section (``nmann``, ``kh``): calibrate them with the cases
-table (``along_channel.nmann.scale``…), so that building the geometry again
+the values of ``geometry`` (``nmann``, ``kh``): calibrate them with the cases
+table (``along_channel.nmann.scale``…), so that writing the base case again
 does not lose them.
 
 
@@ -413,21 +429,21 @@ with ``along_channel.kh.coordinate = km`` multiplies Kh by 0.7 in the first
     from environmentaltools.models import barrier
 
     project = barrier.load_project("barrier.yaml")
-    barrier.prepare_geometry(project)  # only with a 'geometry' section (see above)
+    barrier.prepare_base(project)  # only with 'geometry' or 'simulation' sections (see above)
     barrier.prepare(project)       # create/update the case folders + cases_overview.xlsx
     barrier.run(project)           # run the cases without result
     barrier.postprocess(project)   # series, figures, comparison with the reference
 
 .. code-block:: bash
 
-   python -m environmentaltools.models.barrier geometry barrier.yaml [--again]
+   python -m environmentaltools.models.barrier base barrier.yaml [--again]
    python -m environmentaltools.models.barrier prepare barrier.yaml
    python -m environmentaltools.models.barrier run barrier.yaml [--case NAME] [--again]
    python -m environmentaltools.models.barrier postprocess barrier.yaml
    python -m environmentaltools.models.barrier all barrier.yaml
 
-- :func:`prepare_geometry` (``geometry``; also the first step of ``all`` when
-  the project has a ``geometry`` section) writes the geometry of the base case
+- :func:`prepare_base` (``base``; also the first step of ``all`` when the
+  project has a ``geometry`` or ``simulation`` section) writes the base case
   (see `From the project file`_).
 - :func:`prepare` copies the base case into ``cases_dir/<case>`` and applies the
   changes. It writes ``variant.json`` and ``base_signature.txt`` to know when a
@@ -653,13 +669,13 @@ workflow in a few seconds:
    :language: python
 
 Expected result (BARRIER, MacCormack build of November 2026): the tide reaches
-the head with a slight amplification (±1.1 m at km 10), the salinity stays
+the head with a slight amplification (−1.06 to +1.16 m at km 10), the salinity stays
 between 0 and 36 psu, and the rougher case differs from the reference by up to
-8 cm in level (RMSE 4 cm) and 0.73 psu in salinity (RMSE)::
+8 cm in level (RMSE 4 cm) and 0.75 psu in salinity (RMSE)::
 
-        case status  rmse_eta     rmse_Q    rmse_S     rmse_A
-   reference   done       NaN        NaN       NaN        NaN
-       rough   done  0.040162  29.362417  0.732982  12.048507
+        case status  rmse_eta     rmse_Q   rmse_S     rmse_A
+   reference   done       NaN        NaN      NaN        NaN
+       rough   done  0.041741  31.452627  0.74603  12.522442
 
 Run it to see the figures: ``postprocess/rough/vs_reference.png`` (level over
 the first days and tidal-mean salinity at four stations, both cases) and

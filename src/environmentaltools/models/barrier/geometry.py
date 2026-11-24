@@ -660,6 +660,65 @@ def _sha1(path):
     return hashlib.sha1(Path(path).read_bytes()).hexdigest()
 
 
+def _canon(d):
+    import json
+
+    return json.dumps(d, sort_keys=True, default=str)
+
+
+def _stamp(files):
+    """Size and date of input files (a DEM can be large: its content is not read)."""
+    return {k: [str(f), f.stat().st_size, f.stat().st_mtime_ns] for k, f in files.items()}
+
+
+def pending(signature, settings, inputs, base, outputs, report_dir=None):
+    """Why the files that a section of the project file writes in the base case must be written again.
+
+    Args:
+        signature (Path): JSON written by :func:`save_signature` the last time.
+        settings (dict): The section.
+        inputs (dict): ``{key: Path}`` of its input files (size and date are compared).
+        base (Path): Base case folder.
+        outputs (list[str]): Files of the base case written by the section.
+        report_dir (Path | None): A file edited by hand is copied to ``report_dir/edited`` before it is replaced.
+
+    Returns:
+        str | None: The reason, or None if everything is up to date.
+    """
+    import json
+    import shutil
+
+    if not signature.exists():
+        return "not written yet"
+    saved = json.loads(signature.read_text())
+    if _canon(saved.get("settings")) != _canon(settings):
+        return "the section changed"
+    stamps = _stamp(inputs)
+    for k in sorted(set(stamps) | set(saved.get("inputs") or {})):
+        if _canon(stamps.get(k)) != _canon((saved.get("inputs") or {}).get(k)):
+            return f"the file of '{k}' changed"
+    for name in outputs:
+        f = Path(base) / name
+        if not f.exists():
+            return f"{name} is missing in the base case"
+        if _sha1(f) != (saved.get("outputs") or {}).get(name):
+            if report_dir is not None:
+                (Path(report_dir) / "edited").mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, Path(report_dir) / "edited" / name)
+                return f"{name} of the base case was edited by hand (copy in {Path(report_dir) / 'edited'})"
+            return f"{name} of the base case was edited by hand"
+    return None
+
+
+def save_signature(signature, settings, inputs, base, outputs):
+    """Fingerprint of a section of the project file, its input files and the files it wrote (see :func:`pending`)."""
+    import json
+
+    Path(signature).parent.mkdir(parents=True, exist_ok=True)
+    Path(signature).write_text(json.dumps({"settings": json.loads(_canon(settings)), "inputs": _stamp(inputs),
+                                           "outputs": {n: _sha1(Path(base) / n) for n in outputs}}, indent=1))
+
+
 def prepare_geometry(project, force=False, verbose=True):
     """Build the geometry of the base case from the ``geometry`` section of the project file, if it is pending.
 
@@ -677,9 +736,9 @@ def prepare_geometry(project, force=False, verbose=True):
 
     ``cross-sections.csv`` and ``along_channel_data.csv`` are written in the base case (with the names of its
     ``config.yaml``, if it has one), so :func:`~environmentaltools.models.barrier.prepare` then creates the cases
-    again. ``geometry_dir`` gets ``geometry.png`` (:func:`plot_geometry`), ``geometry_report.xlsx`` (the report)
+    again. ``base_report_dir`` gets ``geometry.png`` (:func:`plot_geometry`), ``geometry_report.xlsx`` (the report)
     and ``geometry_signature.json``. The geometry is built again only when the section, the DEM or the axis (size
-    and date) changed, or when the files of the base case are missing or were changed by hand.
+    and date) changed, or when the files of the base case are missing or were edited by hand (see :func:`pending`).
 
     Args:
         project (BarrierProject): Project configuration.
@@ -688,39 +747,15 @@ def prepare_geometry(project, force=False, verbose=True):
     Returns:
         pd.DataFrame | None: The report, or None if there was nothing to do.
     """
-    import json
-
     if not project["geometry"]:
-        if verbose:
-            print("No 'geometry' section in the project file: the base case keeps its geometry")
         return None
     kind, func, kwargs = geometry_settings(project)
-    base, out = project.base_case, project.path(project["geometry_dir"])
+    base, report_dir = project.base_case, project.path(project["base_report_dir"])
     names = _geometry_files(base)
-    sig_file = out / "geometry_signature.json"
-    canon = lambda d: json.dumps(d, sort_keys=True, default=str)     # noqa: E731
-    sig = {"settings": json.loads(canon(project["geometry"])),
-           "inputs": {k: [str(kwargs[k]), kwargs[k].stat().st_size, kwargs[k].stat().st_mtime_ns]
-                      for k in GEOMETRY_FILES if isinstance(kwargs.get(k), Path)}}
-
-    why = "forced" if force else None
-    if why is None:
-        saved = json.loads(sig_file.read_text()) if sig_file.exists() else None
-        if saved is None:
-            why = "not built yet"
-        elif canon(saved.get("settings")) != canon(sig["settings"]):
-            why = "the geometry section changed"
-        elif canon(saved.get("inputs")) != canon(sig["inputs"]):
-            why = "the DEM or the axis changed"
-        else:
-            for name in names.values():
-                f = base / name
-                if not f.exists():
-                    why = f"{name} is missing in the base case"
-                elif _sha1(f) != saved.get("outputs", {}).get(name):
-                    why = f"{name} of the base case was changed by hand"
-                if why:
-                    break
+    inputs = {k: kwargs[k] for k in GEOMETRY_FILES if isinstance(kwargs.get(k), Path)}
+    signature = report_dir / "geometry_signature.json"
+    why = "forced" if force else pending(signature, project["geometry"], inputs, base, list(names.values()),
+                                         report_dir)
     if why is None:
         if verbose:
             print(f"Geometry: up to date ({base})")
@@ -732,16 +767,16 @@ def prepare_geometry(project, force=False, verbose=True):
     base.mkdir(parents=True, exist_ok=True)
     write_csv(cs, base / names["cross_sections_file"])
     write_csv(along, base / names["along_channel_file"])
-    out.mkdir(parents=True, exist_ok=True)
+    report_dir.mkdir(parents=True, exist_ok=True)
 
     import matplotlib.pyplot as plt
 
     from ._xlsx import write_tables
 
     plot_geometry(cs, along, dem=kwargs.get("dem") if kind == "dem" else None, top_level=kwargs.get("check_level"),
-                  file_name=out / "geometry.png")
+                  file_name=report_dir / "geometry.png")
     plt.close("all")
-    write_tables(out / "geometry_report.xlsx", {"sections": report}, legend={
+    write_tables(report_dir / "geometry_report.xlsx", {"sections": report}, legend={
         "x": "Section: m from the upstream boundary (as in the BARRIER files)",
         "km": "Distance to the mouth (km)",
         "bed": "Bed elevation (m)",
@@ -752,6 +787,28 @@ def prepare_geometry(project, force=False, verbose=True):
         "crosses_next": "The wet line at check_level crosses the next section",
         "files": f"{names['cross_sections_file']} and {names['along_channel_file']} in {base}",
     })
-    sig["outputs"] = {name: _sha1(base / name) for name in names.values()}
-    sig_file.write_text(json.dumps(sig, indent=1, default=str))
+    save_signature(signature, project["geometry"], inputs, base, list(names.values()))
     return report
+
+
+def prepare_base(project, force=False, verbose=True):
+    """Step ``base`` of the workflow: the base case from the sections ``geometry`` and ``simulation`` of the
+    project file, each one only if it is in the project and something changed (:func:`prepare_geometry`,
+    :func:`~environmentaltools.models.barrier.prepare_simulation`). Without either section the base case is used
+    as it is.
+
+    Args:
+        project (BarrierProject): Project configuration.
+        force (bool): Write both again anyway.
+
+    Returns:
+        bool: True if a file of the base case was written.
+    """
+    from .base_case import prepare_simulation
+
+    if not project["geometry"] and not project["simulation"]:
+        if verbose:
+            print("No 'geometry' nor 'simulation' section in the project file: the base case is used as it is")
+        return False
+    built = prepare_geometry(project, force, verbose) is not None
+    return prepare_simulation(project, force, verbose) or built

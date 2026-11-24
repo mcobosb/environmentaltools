@@ -71,7 +71,7 @@ def _covers(series, start, end):
 
 
 def new_base_case(case_dir, start, end, tide, discharge, salinity=36.0, kh=100.0, timestep=3600,
-                  courant_number=0.3, output_variables=None, name=None, overwrite=False, verbose=True):
+                  courant_number=0.3, output_variables=None, name=None, config=None, overwrite=False, verbose=True):
     """Write a base case of BARRIER: a commented ``config.yaml`` with safe settings and the boundary series.
 
     The ``config.yaml`` (from ``config_template.yaml``) has what BARRIER needs to run and does not check: the
@@ -96,6 +96,9 @@ def new_base_case(case_dir, start, end, tide, discharge, salinity=36.0, kh=100.0
         courant_number (float): Courant number of the run.
         output_variables (list[str] | None): Variables written (default :data:`OUTPUT_VARIABLES`, plus ``S``).
         name (str | None): Name of the run (default: the folder name).
+        config (dict | None): Other options of BARRIER, merged into the ``config.yaml`` (same structure, e.g.
+            ``{"hydrodynamics": {"manning_eta": True}}``). The file is then written without the comments of the
+            template (``config_template.yaml`` keeps them).
         overwrite (bool): Replace an existing ``config.yaml`` and series.
 
     Returns:
@@ -120,6 +123,15 @@ def new_base_case(case_dir, start, end, tide, discharge, salinity=36.0, kh=100.0
     problems = check_config(yaml.safe_load(text))
     if problems:                                       # the template must never give one
         raise RuntimeError(f"config_template.yaml: {problems}")
+    if config:
+        from ..swan.config import deep_merge
+
+        merged = deep_merge(yaml.safe_load(text), config)
+        for msg in check_config(merged):
+            print(f"Warning: {msg} (set in 'config')")
+        text = ("# BARRIER configuration of a base case, written by environmentaltools.models.barrier.new_base_case\n"
+                "# with extra options. Every default option, commented: environmentaltools/models/barrier/"
+                "config_template.yaml\n" + yaml.safe_dump(merged, sort_keys=False, allow_unicode=True))
 
     case_dir.mkdir(parents=True, exist_ok=True)
     (case_dir / "config.yaml").write_text(text, encoding="utf-8")
@@ -136,3 +148,105 @@ def new_base_case(case_dir, start, end, tide, discharge, salinity=36.0, kh=100.0
               + (f"; still missing: {', '.join(missing)} (build_geometry, prismatic_geometry or the step "
                  "'geometry')" if missing else ""))
     return case_dir
+
+
+def read_series(file_name):
+    """A boundary series from a csv file: first column the time (dates, or seconds since the start of the run),
+    second column the value. BARRIER files (header line starting with ``;``) are read too.
+
+    Returns:
+        pd.Series: Values indexed by date or by seconds.
+    """
+    from .inputs import read_csv
+
+    import re
+
+    f = Path(file_name)
+    with open(f) as fh:
+        first = fh.readline().strip()
+    if first.startswith(";"):                               # BARRIER file
+        df = read_csv(f)
+    else:
+        sep = ";" if ";" in first else "," if "," in first else r"\s+"
+        field = re.split(sep, first)[0].strip()
+        is_value = pd.notna(pd.to_numeric(field, errors="coerce")) or pd.notna(pd.to_datetime(field, errors="coerce"))
+        df = pd.read_csv(f, sep=sep, engine="python", header=None if is_value else 0)   # header: not a time
+    if df.shape[1] < 2:
+        raise ValueError(f"{f.name}: needs two columns (time, value)")
+    t = pd.to_numeric(df.iloc[:, 0], errors="coerce")
+    index = t.to_numpy(dtype=float) if t.notna().all() else pd.DatetimeIndex(pd.to_datetime(df.iloc[:, 0]))
+    return pd.Series(pd.to_numeric(df.iloc[:, 1]).to_numpy(dtype=float), index=index, name=df.columns[1])
+
+
+#: Keys of the ``simulation`` section of a project file (arguments of :func:`new_base_case`).
+SIMULATION_KEYS = {"start", "end", "tide", "discharge", "salinity", "kh", "timestep", "courant_number",
+                   "output_variables", "name", "config"}
+#: Files written by the ``simulation`` section in the base case.
+SIMULATION_FILES = ("config.yaml", "tides.csv", "discharge.csv")
+
+
+def simulation_settings(project):
+    """Arguments of :func:`new_base_case` from the ``simulation`` section of a project file (series files read).
+
+    Returns:
+        tuple[dict, dict]: The arguments and ``{key: Path}`` of the series files.
+
+    Raises:
+        ValueError: If a key is unknown or ``start``, ``end``, ``tide`` or ``discharge`` is missing.
+    """
+    cfg = dict(project["simulation"] or {})
+    unknown = set(cfg) - SIMULATION_KEYS
+    if unknown:
+        raise ValueError(f"simulation: unknown keys {sorted(unknown)}; use {sorted(SIMULATION_KEYS)}")
+    missing = {"start", "end", "tide", "discharge"} - set(cfg)
+    if missing:
+        raise ValueError(f"simulation: missing {sorted(missing)}")
+    files = {}
+    for k in ("tide", "discharge"):
+        if isinstance(cfg[k], str):
+            files[k] = project.path(cfg[k])
+            cfg[k] = read_series(files[k])
+    return cfg, files
+
+
+def prepare_simulation(project, force=False, verbose=True):
+    """Write ``config.yaml`` and the boundary series of the base case from the ``simulation`` section, if pending.
+
+    The section holds the arguments of :func:`new_base_case`, with the series as files (relative to the project
+    file; see :func:`read_series`), numbers or, for the tide, the arguments of :func:`harmonic_tide`::
+
+        simulation:
+          start: 2008-07-01
+          end: 2008-11-30
+          tide: inputs/tide.csv
+          discharge: inputs/discharge.csv
+          salinity: 36.5
+          config: {hydrodynamics: {manning_eta: true}}
+
+    The files are written again when the section or a series file (size and date) changes, or when they are
+    missing or were edited by hand (a copy of the edited file is kept in ``base_report_dir/edited``): the section
+    is the place to change them. Since the base case changes, :func:`~environmentaltools.models.barrier.prepare`
+    then creates the cases again.
+
+    Returns:
+        bool: True if the files were written.
+    """
+    if not project["simulation"]:
+        return False
+    from .geometry import pending
+
+    kwargs, files = simulation_settings(project)
+    base, report = project.base_case, project.path(project["base_report_dir"])
+    why = "forced" if force else pending(report / "simulation_signature.json", project["simulation"], files, base,
+                                         SIMULATION_FILES, report)
+    if why is None:
+        if verbose:
+            print(f"Simulation: up to date ({base})")
+        return False
+    if verbose:
+        print(f"Simulation: {why} → written again")
+    new_base_case(base, overwrite=True, verbose=False, **kwargs)
+    from .geometry import save_signature
+
+    save_signature(report / "simulation_signature.json", project["simulation"], files, base, SIMULATION_FILES)
+    return True

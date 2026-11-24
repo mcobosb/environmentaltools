@@ -37,6 +37,8 @@ transport:
   salinity:
     enabled: $salinity_enabled
     dispersion_kh: $kh                # m2/s, where along_channel_data.csv has no kh column (calibration parameter)
+    beta: 0.00076                     # haline contraction (1/psu): density grows with salinity. BARRIER's default
+                                      # is 0: the salt would not change the density nor the flow
     boundary_conditions:
       upstream:
         type: 1                       # 1: fixed value (fresh water); 0: free

@@ -1,35 +1,35 @@
 """Command line of the BARRIER workflow: ``python -m environmentaltools.models.barrier <step> barrier.yaml``.
 
 Steps:
-    geometry      build the geometry of the base case from the 'geometry' section (if something changed)
+    base          the base case from the sections 'geometry' and 'simulation' (only what changed)
     prepare       create or update the cases of the list and the overview to review them
     run           run BARRIER in the cases without result (--case NAME for some, --again to repeat)
     postprocess   series at points, figures and comparison of the new results (--again for all)
-    all           every step in a row (geometry only if the project has that section)
+    all           every step in a row (base only if the project has one of those sections)
 """
 
 import argparse
 import sys
 
-from . import load_project, postprocess, prepare, prepare_geometry, run
+from . import load_project, postprocess, prepare, prepare_base, run
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m environmentaltools.models.barrier", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["geometry", "prepare", "run", "postprocess", "all"])
+    parser.add_argument("step", choices=["base", "prepare", "run", "postprocess", "all"])
     parser.add_argument("project", help="project file (barrier.yaml)")
     parser.add_argument("--case", action="append", help="only this case (can be repeated)")
     parser.add_argument("--again", action="store_true",
-                        help="build the geometry again (geometry), repeat finished cases (run) or all of them (postprocess)")
+                        help="write the base case again (base), repeat finished cases (run) or all of them (postprocess)")
     args = parser.parse_args(argv)
 
     import matplotlib
 
     matplotlib.use("Agg")
     project = load_project(args.project)
-    if args.step == "geometry" or (args.step == "all" and project["geometry"]):
-        prepare_geometry(project, force=args.again and args.step == "geometry")
+    if args.step == "base" or (args.step == "all" and (project["geometry"] or project["simulation"])):
+        prepare_base(project, force=args.again and args.step == "base")
     if args.step in ("prepare", "all"):
         prepare(project)
     if args.step in ("run", "all"):
