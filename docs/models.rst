@@ -144,40 +144,43 @@ BARRIER
 -------
 
 BARRIER (https://github.com/mcobosb/Barrier) is the 1-D estuarine model of
-M. Cobos. The whole workflow runs from one project file (start from
-``environmentaltools/models/barrier/barrier_template.yaml``): a base case (a
-folder with BARRIER's ``config.yaml`` and its CSV files), the folders, the
-executable and the postprocessing. The cases go in an Excel table
-(``cases_file``): one row per case and one column per change of the base case
-(e.g. ``along_channel.nmann.scale``, ``hydrodynamics.courant_number``,
-``files.tides.csv``); an empty cell means "as in the base case".
+M. Cobos. The whole workflow runs from one project file, ``barrier.yaml``
+(``python -m environmentaltools.models.barrier new <folder>`` creates one that
+runs an idealised channel as it comes), in four blocks:
+
+1. **The model**: the base case (a folder with BARRIER's ``config.yaml`` and
+   its CSV files), written from the sections ``geometry`` (a DEM and a channel
+   axis, ``build_geometry``, or an idealised channel, ``prismatic_geometry``)
+   and ``simulation`` (``new_base_case``: period, tide, discharge, salinity),
+   or brought from an existing model.
+2. **The cases**: the base case with changes, in an Excel table
+   (``cases_file``): one row per case and one column per change (e.g.
+   ``along_channel.nmann.scale``, ``hydrodynamics.courant_number``,
+   ``files.tides.csv``); an empty cell means "as in the base case".
+3. **The runs**: the executable and where the results go.
+4. **The analysis**: series at points, figures, comparison with a reference.
+
 Section ``x = 0`` is the upstream boundary and the last section is the mouth,
 so it works for any channel::
 
     from environmentaltools.models import barrier
 
     project = barrier.load_project("barrier.yaml")
-    barrier.prepare(project)       # create/update the cases + overview to review them
-    barrier.run(project)           # run the cases without result
-    barrier.postprocess(project)   # series at points, figures, comparison with a reference
+    barrier.prepare_base(project)  # 1. the base case (sections geometry and simulation)
+    barrier.prepare(project)       # 2. create/update the cases + overview to review them
+    barrier.run(project)           # 3. run the cases without result
+    barrier.postprocess(project)   # 4. series at points, figures, comparison with a reference
 
 or from the terminal: ``python -m environmentaltools.models.barrier all barrier.yaml``.
 Each step only does what is pending: a case changed in the list (or a changed
 base case) is created, run and postprocessed again; the rest are kept. Example:
 ``examples/models - E02 - barrier_workflow.py``.
 
-The geometry (``cross-sections.csv``, ``along_channel_data.csv``) is built
-from a DEM (raster or xyz) and a channel axis with ``build_geometry``, or for
-an idealised rectangular or trapezoidal channel with ``prismatic_geometry``;
-from the project file, with a ``geometry`` section. A starter ``config.yaml``
-with the boundary series comes from ``new_base_case`` or the ``simulation``
-section; both sections are the step ``base``.
-
 Input files are written with every digit: rounding the geometry or the
 along-channel data to 10 significant digits changes the water level by
 decimetres.
 
-Step by step (inputs, cases, calibration, outputs, minimal example and common
+Step by step, block by block (with the minimal example and the common
 problems): :doc:`models/barrier`.
 
 .. toctree::

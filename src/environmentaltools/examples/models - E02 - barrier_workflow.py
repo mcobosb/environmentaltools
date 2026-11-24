@@ -1,31 +1,32 @@
-"""BARRIER workflow for any channel: base case → list of cases → prepare → run → postprocess.
+"""BARRIER workflow for any channel, in four blocks: the model → the cases → the runs → the analysis.
 
-What a project needs (one folder, e.g. ``01_INPUTS/``):
+Start a project with ``python -m environmentaltools.models.barrier new <folder>``: it writes
+``<folder>/barrier.yaml`` (every option explained, an idealised channel that runs as it comes) and
+``<folder>/inputs/``. The project file is the only file to edit:
 
-1. A **base case**: a folder with BARRIER's ``config.yaml`` and the CSV files it names
-   (``along_channel_data.csv``, ``cross-sections.csv``, tide, discharge…). Check the
-   cross-section tables once (step 0 below).
-2. A **project file** ``barrier.yaml``: copy
-   ``environmentaltools/models/barrier/barrier_template.yaml`` and set the base case, the
-   folders, the executable (or a list, one per computer) and the postprocessing (points,
-   reference, figures). This is what hardly changes.
-3. A **cases table** ``cases.xlsx`` (``cases_file`` in the project file): one row per case
-   and one column per change of the base case, e.g. ``along_channel.nmann.scale`` or
-   ``hydrodynamics.courant_number``; an empty cell means "as in the base case". The first
-   ``prepare`` creates it with examples and a legend of the possible columns.
-4. The BARRIER executable (https://github.com/mcobosb/Barrier), in the project file or in
-   the environment variable ``BARRIER_EXE``.
+1. **The model**, the base case every case starts from: the sections ``geometry`` (a DEM and the
+   channel axis, or an idealised channel) and ``simulation`` (period, tide, discharge, salinity) write
+   it in ``base_case/`` (step ``base``). An existing base case (a folder with BARRIER's ``config.yaml``
+   and its CSV files) can be used instead, without those sections: check its cross-section tables
+   once (step 0 below).
+2. **The cases**: ``cases.xlsx`` (``cases_file``), one row per case and one column per change of the
+   base case, e.g. ``along_channel.nmann.scale`` or ``hydrodynamics.courant_number``; an empty cell
+   means "as in the base case". The first ``prepare`` creates it with examples and a legend.
+3. **The runs**: the BARRIER executable (https://github.com/mcobosb/Barrier), in the project file or
+   in the environment variable ``BARRIER_EXE``.
+4. **The analysis**: points, reference case and figures of ``postprocess``.
 
-Then run the three steps, from Python (below) or from the terminal::
+Then run the steps, from Python (below) or from the terminal::
 
+    python -m environmentaltools.models.barrier base barrier.yaml
     python -m environmentaltools.models.barrier prepare barrier.yaml
     python -m environmentaltools.models.barrier run barrier.yaml
     python -m environmentaltools.models.barrier postprocess barrier.yaml
-    python -m environmentaltools.models.barrier all barrier.yaml      # the three in a row
+    python -m environmentaltools.models.barrier all barrier.yaml      # the four in a row
 
 Every step only does what is pending, so they can be run again at any time: add or change a
-row of ``cases.xlsx`` (or change the base case) and the same three calls create it, run it
-and postprocess it, leaving the rest as they are.
+row of ``cases.xlsx`` (or change the base case) and the same calls create it, run it and
+postprocess it, leaving the rest as they are.
 """
 import matplotlib
 
@@ -47,14 +48,17 @@ barrier.write_series(tide, "base_case/tides.csv", start=start, names=("time_seco
 
 project = barrier.load_project("barrier.yaml")
 
-# 1. PREPARE: one folder per case + cases_overview.xlsx (base case and cases side by side, changes in
+# 1. BASE: the base case from the sections geometry and simulation (nothing to do without them)
+barrier.prepare_base(project)
+
+# 2. PREPARE: one folder per case + cases_overview.xlsx (base case and cases side by side, changes in
 #    orange) and section_parameters.png in each case → review them before running
 manifest = barrier.prepare(project)
 
-# 2. RUN: cases without result (results_dir/<case>/: NetCDF, log, screen output, done.json)
+# 3. RUN: cases without result (results_dir/<case>/: NetCDF, log, screen output, done.json)
 log = barrier.run(project)
 
-# 3. POSTPROCESS: new results only (postprocess_dir/<case>/: timeseries.xlsx and figures of the points,
+# 4. POSTPROCESS: new results only (postprocess_dir/<case>/: timeseries.xlsx and figures of the points,
 #    the variable along the channel and, with a reference, the comparison with it)
 summary = barrier.postprocess(project)
 print(summary)

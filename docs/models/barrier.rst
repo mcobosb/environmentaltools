@@ -4,12 +4,14 @@ BARRIER: user guide
 .. currentmodule:: environmentaltools.models.barrier
 
 This page explains how to set up, run and analyse BARRIER with
-``environmentaltools.models.barrier``. The reference of every function is in
-:doc:`../models` (section *BARRIER*).
+``environmentaltools.models.barrier``. After the installation and a quick
+start, it follows the four blocks of the workflow, in the order of the work:
+the model (the base case), the cases, the runs and the analysis. The reference
+of every function is in :doc:`../models` (section *BARRIER*).
 
 .. contents:: On this page
    :local:
-   :depth: 1
+   :depth: 2
 
 
 What it does and limitations
@@ -124,9 +126,39 @@ Then replace block 1 with your channel: the DEM and the channel axis in
 ``geometry`` (``type: dem``), the tide and discharge files in ``simulation``
 (all in ``inputs/``). The sections below explain each block.
 
+**The steps**, one per block, from Python or from the terminal. Every option of
+the project file is explained in the file itself (``barrier.TEMPLATE``)::
 
-Inputs
-------
+    from environmentaltools.models import barrier
+
+    project = barrier.load_project("barrier.yaml")
+    barrier.prepare_base(project)  # block 1, only with 'geometry' or 'simulation' sections
+    barrier.prepare(project)       # create/update the case folders + cases_overview.xlsx
+    barrier.run(project)           # run the cases without result
+    barrier.postprocess(project)   # series, figures, comparison with the reference
+
+.. code-block:: bash
+
+   python -m environmentaltools.models.barrier base barrier.yaml [--again]
+   python -m environmentaltools.models.barrier prepare barrier.yaml
+   python -m environmentaltools.models.barrier run barrier.yaml [--case NAME] [--again]
+   python -m environmentaltools.models.barrier postprocess barrier.yaml
+   python -m environmentaltools.models.barrier all barrier.yaml
+
+Every step only does what is pending: change a row and the same calls create,
+run and postprocess that case again, leaving the rest untouched.
+
+
+Block 1: the model (base case)
+------------------------------
+
+Every case starts from the **base case**: a folder with BARRIER's
+``config.yaml`` and the files it names. It can be written by the workflow
+(step ``base``, from the sections ``geometry`` and ``simulation`` of the
+project file, see `From the project file`_) or brought from an existing model.
+
+Input files
+~~~~~~~~~~~
 
 A **case** is a folder with BARRIER's ``config.yaml`` and the files it names
 (paths relative to that folder). All tables are CSV, comma-separated, with a
@@ -276,7 +308,7 @@ are calibrated afterwards.
   at ``top_level``: a larger ``half_width``, or fill the DEM;
 - ``crosses_next``: the wet line at ``check_level`` crosses the next section
   (in a bend): a larger ``axis_smooth`` or ``dx``;
-- ``area_jump``: change of the area between neighbours (|Δ ln A|): large
+- ``area_jump``: change of the area between neighbours (``|Δ ln A|``): large
   jumps call for ``smooth``;
 - sections with the bed at 0 m or above start dry.
 
@@ -404,25 +436,11 @@ table (``along_channel.nmann.scale``…), so that writing the base case again
 does not lose them.
 
 
-Preparing cases and running
----------------------------
+Block 2: the cases
+------------------
 
-The workflow runs from one **project file** (start from
-``environmentaltools/models/barrier/barrier_template.yaml``, available as
-``barrier.TEMPLATE``):
-
-.. code-block:: yaml
-
-   base_case: base_case            # BARRIER's config.yaml + its CSV files
-   cases_file: cases.xlsx          # one row per case, one column per change
-   cases_dir: cases                # what BARRIER reads, one folder per case
-   results_dir: results            # NetCDF, log, console output, done.json
-   postprocess_dir: postprocess    # series and figures
-   executable: null                # or a path / list of paths (one per computer)
-   work_dir: null                  # true when results_dir is synced (Synology, OneDrive) or on /mnt/c
-   postprocess:
-     points: {Mouth: 0, Gauge A: 20}
-     reference: {case: reference}
+Preparing the cases
+~~~~~~~~~~~~~~~~~~~
 
 **The cases.** Each case is the base case plus changes. They go in the cases
 table (:func:`read_cases_table`; the first ``prepare`` creates an example with a
@@ -455,50 +473,22 @@ For example, ``along_channel.kh.scale = [[0, 0.7], [20, 0.7], [22, 1], [105, 1]]
 with ``along_channel.kh.coordinate = km`` multiplies Kh by 0.7 in the first
 20 km from the mouth and leaves it unchanged beyond km 22.
 
-**The three steps**, from Python or from the terminal::
+The step ``prepare`` (:func:`prepare`) copies the base case into
+``cases_dir/<case>`` and applies the changes. It writes ``variant.json`` and
+``base_signature.txt`` to know when a case is out of date (its row, the base case or a replacement file changed),
+``section_parameters.png`` (n, Kh, Sf and β against the base case) and
+``cases_overview.xlsx`` (every ``config.yaml`` value and input file side by
+side, differences in orange). **Review the overview before running.** It
+also warns about settings known to give a wrong result without an error
+(:func:`check_config`).
 
-    from environmentaltools.models import barrier
-
-    project = barrier.load_project("barrier.yaml")
-    barrier.prepare_base(project)  # only with 'geometry' or 'simulation' sections (see above)
-    barrier.prepare(project)       # create/update the case folders + cases_overview.xlsx
-    barrier.run(project)           # run the cases without result
-    barrier.postprocess(project)   # series, figures, comparison with the reference
-
-.. code-block:: bash
-
-   python -m environmentaltools.models.barrier base barrier.yaml [--again]
-   python -m environmentaltools.models.barrier prepare barrier.yaml
-   python -m environmentaltools.models.barrier run barrier.yaml [--case NAME] [--again]
-   python -m environmentaltools.models.barrier postprocess barrier.yaml
-   python -m environmentaltools.models.barrier all barrier.yaml
-
-- :func:`prepare_base` (``base``; also the first step of ``all`` when the
-  project has a ``geometry`` or ``simulation`` section) writes the base case
-  (see `From the project file`_).
-- :func:`prepare` copies the base case into ``cases_dir/<case>`` and applies the
-  changes. It writes ``variant.json`` and ``base_signature.txt`` to know when a
-  case is out of date (its row, the base case or a replacement file changed),
-  ``section_parameters.png`` (n, Kh, Sf and β against the base case) and
-  ``cases_overview.xlsx`` (every ``config.yaml`` value and input file side by
-  side, differences in orange). **Review the overview before running.** It
-  also warns about settings known to give a wrong result without an error
-  (:func:`check_config`).
-- :func:`run` runs the cases without ``done.json``, one after the other, and
-  keeps ``results_dir/run_log.csv``. A run is accepted only if it writes a new
-  NetCDF with time steps, readable in full and without NaN.
-- :func:`postprocess` processes the new results only.
-
-Every step only does what is pending: change a row and the same three calls
-create, run and postprocess that case again, leaving the rest untouched. Folders
-of cases removed from the list are reported but not deleted.
-
-The pieces can be used alone: :func:`create_case` (one case folder from a base
-case) and :func:`run_case` (one run).
+Folders of cases removed from the list are reported but not deleted.
+:func:`create_case` creates one case folder from a base case, outside a
+project.
 
 
 Key parameters and calibration
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -553,8 +543,26 @@ A usual order: first levels (``nmann``, ``Sf``) without salinity
 ``inflow_mixing_alpha``) with the calibrated hydrodynamics.
 
 
+Block 3: the runs
+-----------------
+
+Running
+~~~~~~~
+
+The step ``run`` (:func:`run`) runs the cases without ``done.json``, one after
+the other, and keeps ``results_dir/run_log.csv``. A run is accepted only if it writes a new
+NetCDF with time steps, readable in full and without NaN.
+
+The executable and the builds of each case are in block 3 of the project file
+(see `Executable and installation`_). With ``work_dir: true`` BARRIER writes in
+the local temporary folder and the files are moved to ``results_dir`` at the
+end (for synced folders or ``/mnt/c`` from WSL). ``--case NAME`` runs some
+cases, ``--again`` repeats finished ones. :func:`run_case` runs one case
+folder, outside a project.
+
+
 Outputs
--------
+~~~~~~~
 
 In ``results_dir/<case>/``:
 
@@ -614,10 +622,15 @@ coordinates are written, ``W``: the surface width between banks (m), consistent
 with ``A`` (see :func:`bank_width`).
 
 
-Postprocessing, data extraction and figures
--------------------------------------------
+Block 4: the analysis
+---------------------
 
-:func:`postprocess` writes, for each finished case, in ``postprocess_dir/<case>/``:
+Postprocessing, data extraction and figures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The step ``postprocess`` (:func:`postprocess`) processes the new results only
+(and everything again when the points or the project file change). For each
+finished case it writes in ``postprocess_dir/<case>/``:
 
 - ``timeseries.xlsx``: one sheet per variable of ``postprocess.variables`` (one
   column per point, named ``"<name> (km <km of the section used>)"``), the sheet
