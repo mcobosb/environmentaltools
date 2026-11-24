@@ -173,6 +173,14 @@ Input files are written with every digit: rounding the geometry or the
 along-channel data to 10 significant digits changes the water level by
 decimetres.
 
+Step by step (inputs, cases, calibration, outputs, minimal example and common
+problems): :doc:`models/barrier`.
+
+.. toctree::
+   :maxdepth: 1
+
+   models/barrier
+
 .. currentmodule:: environmentaltools.models.barrier
 
 .. autosummary::
@@ -187,6 +195,7 @@ decimetres.
    write_cases_table
    create_case
    run_case
+   barrier_executable
    postprocess_output
    load_points
    read_config
@@ -200,6 +209,7 @@ decimetres.
    check_cross_sections
    fix_cross_sections
    read_output
+   bank_width
    read_project
    extract_points
    tidal_mean
