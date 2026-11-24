@@ -202,7 +202,8 @@ class BarrierProject:
 
     Args:
         source (str | Path | dict): YAML file or dictionary.
-        overrides (dict | None): Values that replace those of ``source``.
+        overrides (dict | None): Values that replace those of ``source``, merged key by key; its ``cases`` are
+            added to those of ``source`` (a case with the same name is merged with it).
 
     Attributes:
         data (dict): Full configuration (defaults + file + overrides).
@@ -216,8 +217,10 @@ class BarrierProject:
             self.base_dir = self.file.parent
         else:
             self.file, raw, self.base_dir = None, copy.deepcopy(dict(source)), Path.cwd()
-        if "cases" in raw:                       # 'cases' is the documented name, 'variants' the old one
-            raw["variants"] = raw.pop("cases")
+        overrides = copy.deepcopy(dict(overrides or {}))
+        for d in (raw, overrides):
+            if "cases" in d:                     # 'cases' is the documented name, 'variants' the old one
+                d["variants"] = d.pop("cases")
         self.data = deep_merge(deep_merge(DEFAULTS, raw), overrides)
         self.data["variants"] = {name: (v or {}) for name, v in (self.data["variants"] or {}).items()}
         f = self.cases_file

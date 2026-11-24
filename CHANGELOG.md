@@ -28,6 +28,7 @@ All relevant project updates are documented here:
 - Delft3D plots read `.grd` files with `models.common.read_delft_grd` (potinar)
 
 ### Fixed
+- `models.barrier.load_project`: the `cases` given in `overrides` were silently ignored (only the old name `variants` worked); they are now added to those of the project file (potinar)
 - `models.barrier.run` stopped the whole batch with an `OSError` when the executable could not be started (e.g. a Linux/WSL build on macOS, "Exec format error"); `run_case` now raises a `RuntimeError` that explains it, and `run` marks the case as failed and goes on with the next one (potinar)
 - `nesting` called non-existent `write.copla`/`copla` and `run_swan` without the executable (potinar)
 - `read_copla` discarded the `grid` passed to it (potinar)

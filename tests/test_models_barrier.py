@@ -157,6 +157,18 @@ def test_prepare_warns_without_tvd_limiter(base_case, tmp_path, capsys):
     assert len(warnings) == 1 and "tvd_limiter" in warnings[0] and warnings[0].endswith("(cases: base, off)")
 
 
+def test_project_overrides_add_cases(base_case, tmp_path):
+    """The cases of the overrides are added to those of the project file (they were ignored)."""
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case),
+                                 "cases": {"a": {}, "b": {"config": {"hydrodynamics": {"courant_number": 0.2}}}}}))
+    project = barrier.load_project(f, {"results_dir": "other", "cases": {"c": {},
+                                                                         "b": {"along_channel": {"nmann": {"scale": 2}}}}})
+    assert project.case_names == ["a", "b", "c"] and project.results_dir == tmp_path / "other"
+    assert project["variants"]["b"] == {"config": {"hydrodynamics": {"courant_number": 0.2}},
+                                        "along_channel": {"nmann": {"scale": 2}}}
+
+
 def test_template_loads():
     project = barrier.load_project(barrier.TEMPLATE)
     assert project.cases_file.name == "cases.xlsx" and project.case_names == []
