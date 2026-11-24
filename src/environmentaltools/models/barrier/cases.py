@@ -194,7 +194,8 @@ def prepare(project, overwrite=False, overview=True, figures=True, verbose=True)
     if project.cases_file is not None and not project.cases_file.exists():
         write_cases_table(project.cases_file)
         if verbose:
-            print(f"Created the cases table {project.cases_file}: fill it in and run prepare again")
+            print(f"Created the cases table {project.cases_file} with two example cases: review it (add rows or "
+                  "columns) and run prepare (or all) again")
         if not project["variants"]:
             return pd.DataFrame(columns=["case", "folder", "status", "changes"])
     root = project.cases_dir

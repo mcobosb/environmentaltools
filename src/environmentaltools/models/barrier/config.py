@@ -347,6 +347,36 @@ class BarrierProject:
         return True
 
 
+#: Project file template: the four blocks with every option, an idealised channel that runs as it comes.
+TEMPLATE = Path(__file__).with_name("barrier_template.yaml")
+
+
+def new_project(folder, overwrite=False, verbose=True):
+    """Create a BARRIER project: ``folder/barrier.yaml`` (:data:`TEMPLATE`) and ``folder/inputs``.
+
+    The project file has the four blocks of the workflow (the model, the cases, the runs, the analysis) with every
+    option commented. As it comes it models an idealised channel and runs (``all``); then block 1 is replaced with the
+    real channel, with its files in ``inputs``.
+
+    Args:
+        folder (str | Path): Project folder (created if needed).
+        overwrite (bool): Replace an existing ``barrier.yaml``.
+
+    Returns:
+        Path: The project file.
+    """
+    folder = Path(folder)
+    f = folder / "barrier.yaml"
+    if f.exists() and not overwrite:
+        raise FileExistsError(f"{f} exists (overwrite=True to replace it)")
+    (folder / "inputs").mkdir(parents=True, exist_ok=True)
+    f.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+    if verbose:
+        print(f"New BARRIER project in {folder}: barrier.yaml (edit it) and inputs/ (DEM, axis, tide, discharge).\n"
+              f"Run it: python -m environmentaltools.models.barrier all {f}")
+    return f
+
+
 def load_project(source, overrides=None):
     """Load a BARRIER project (YAML file or dict) with optional overrides."""
     return BarrierProject(source, overrides)

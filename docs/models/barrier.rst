@@ -94,6 +94,37 @@ BARRIER is called as ``barrier /path/to/case/config.yaml`` and writes its output
 in the folder it is run from; :func:`run_case` takes care of that.
 
 
+Quick start
+-----------
+
+With BARRIER installed (``BARRIER_EXE`` set, see above), a new project runs as
+it comes:
+
+.. code-block:: bash
+
+   python -m environmentaltools.models.barrier new my_estuary
+   python -m environmentaltools.models.barrier all my_estuary/barrier.yaml   # base case + cases.xlsx
+   python -m environmentaltools.models.barrier all my_estuary/barrier.yaml   # runs the example cases
+
+``new`` (:func:`new_project`) creates ``my_estuary/barrier.yaml`` and
+``my_estuary/inputs/``. The project file is the only file to edit; it has four
+blocks, in the order of the work:
+
+1. **The model**: the base case, from the sections ``geometry`` (the channel)
+   and ``simulation`` (period, tide, discharge, salinity). As it comes, an
+   idealised channel 20 km long with a synthetic tide.
+2. **The cases**: the base case with changes, one row per case in
+   ``cases.xlsx`` (created by the first ``all`` with two examples).
+3. **The runs**: the BARRIER executable and where the results go.
+4. **The analysis**: points, reference case, figures.
+
+The first ``all`` writes the base case and creates ``cases.xlsx``; the second
+one runs the cases and leaves the series and figures in ``postprocess/``.
+Then replace block 1 with your channel: the DEM and the channel axis in
+``geometry`` (``type: dem``), the tide and discharge files in ``simulation``
+(all in ``inputs/``). The sections below explain each block.
+
+
 Inputs
 ------
 

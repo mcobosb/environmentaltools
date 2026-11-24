@@ -761,7 +761,7 @@ def prepare_geometry(project, force=False, verbose=True):
             print(f"Geometry: up to date ({base})")
         return None
     if verbose:
-        print(f"Geometry ({kind}): {why} → built again")
+        print(f"Geometry ({kind}): {why} → building it")
 
     cs, along, report = func(**kwargs, verbose=verbose)
     base.mkdir(parents=True, exist_ok=True)

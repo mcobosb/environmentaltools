@@ -244,7 +244,7 @@ def prepare_simulation(project, force=False, verbose=True):
             print(f"Simulation: up to date ({base})")
         return False
     if verbose:
-        print(f"Simulation: {why} → written again")
+        print(f"Simulation: {why} → writing config.yaml and the series")
     new_base_case(base, overwrite=True, verbose=False, **kwargs)
     from .geometry import save_signature
 

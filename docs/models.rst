@@ -190,6 +190,7 @@ problems): :doc:`models/barrier`.
 .. autosummary::
    :toctree: _autosummary
 
+   new_project
    load_project
    prepare
    run

@@ -38,10 +38,8 @@ The pieces can also be used one by one (``create_case``, ``run_case``,
 ``read_output``, ``extract_points``, ``compare`` and the ``plot_*`` functions).
 """
 
-from pathlib import Path
-
-from .config import (BarrierProject, check_config, input_files, load_project, read_cases_table, read_config,
-                     start_date, write_config)
+from .config import (TEMPLATE, BarrierProject, check_config, input_files, load_project, new_project, read_cases_table,
+                     read_config, start_date, write_config)
 from .inputs import (CROSS_SECTION_COLUMNS, MONOTONIC, check_cross_sections, fix_cross_sections, read_csv,
                      section_profile, set_section_parameter, write_csv, write_series, write_tributaries)
 from .geometry import (ALONG_COLUMNS, build_geometry, copy_downstream, crossing_sections, plot_geometry,
@@ -56,10 +54,8 @@ from .read import (COMPARE_TOLERANCES, bank_width, compare, distance_to_mouth, e
 from .plot import plot_along_channel, plot_comparison, plot_point_series, plot_section_parameters
 from .postprocess import boundary_forcings, load_points, postprocess, postprocess_output
 
-TEMPLATE = Path(__file__).with_name("barrier_template.yaml")
-
 __all__ = [
-    "BarrierProject", "load_project", "read_cases_table", "cases_to_table", "write_cases_table",
+    "BarrierProject", "new_project", "load_project", "read_cases_table", "cases_to_table", "write_cases_table",
     "read_config", "write_config", "input_files", "start_date", "check_config", "TEMPLATE",
     "CROSS_SECTION_COLUMNS", "MONOTONIC", "read_csv", "write_csv", "write_series", "write_tributaries",
     "section_profile", "set_section_parameter", "check_cross_sections", "fix_cross_sections",

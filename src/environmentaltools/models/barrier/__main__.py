@@ -1,6 +1,7 @@
 """Command line of the BARRIER workflow: ``python -m environmentaltools.models.barrier <step> barrier.yaml``.
 
 Steps:
+    new           create a project: <folder>/barrier.yaml (four blocks, an idealised channel that runs) and inputs/
     base          the base case from the sections 'geometry' and 'simulation' (only what changed)
     prepare       create or update the cases of the list and the overview to review them
     run           run BARRIER in the cases without result (--case NAME for some, --again to repeat)
@@ -11,18 +12,25 @@ Steps:
 import argparse
 import sys
 
-from . import load_project, postprocess, prepare, prepare_base, run
+from . import load_project, new_project, postprocess, prepare, prepare_base, run
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m environmentaltools.models.barrier", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["base", "prepare", "run", "postprocess", "all"])
-    parser.add_argument("project", help="project file (barrier.yaml)")
+    parser.add_argument("step", choices=["new", "base", "prepare", "run", "postprocess", "all"])
+    parser.add_argument("project", help="project file (barrier.yaml); for 'new', the folder of the new project")
     parser.add_argument("--case", action="append", help="only this case (can be repeated)")
     parser.add_argument("--again", action="store_true",
                         help="write the base case again (base), repeat finished cases (run) or all of them (postprocess)")
     args = parser.parse_args(argv)
+
+    if args.step == "new":
+        try:
+            new_project(args.project)
+        except FileExistsError as exc:
+            sys.exit(str(exc))
+        return
 
     import matplotlib
 

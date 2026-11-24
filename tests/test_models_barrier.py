@@ -783,3 +783,29 @@ def test_project_from_scratch(tmp_path, monkeypatch):
     assert (tmp_path / "postprocess" / "ref" / "timeseries.xlsx").exists()
     assert sorted(p.name for p in (tmp_path / "base_report").iterdir() if p.suffix == ".json") == [
         "geometry_signature.json", "simulation_signature.json"]
+
+
+# ------------------------------------------------------------------ new project
+def test_new_project_runs_as_it_comes(tmp_path, monkeypatch, capsys):
+    """'new' writes barrier.yaml and inputs/; the project runs: first 'all' writes the base case and the cases table,
+    the second one runs and postprocesses the example cases."""
+    from environmentaltools.models.barrier.__main__ import main
+
+    folder = tmp_path / "estuary"
+    main(["new", str(folder)])
+    f = folder / "barrier.yaml"
+    assert f.read_text() == barrier.TEMPLATE.read_text() and (folder / "inputs").is_dir()
+    with pytest.raises(SystemExit, match="exists"):
+        main(["new", str(folder)])
+    with pytest.raises(FileExistsError):
+        barrier.new_project(folder)
+
+    monkeypatch.setenv("BARRIER_EXE", str(fake_barrier(tmp_path)))
+    main(["all", str(f)])
+    assert (folder / "cases.xlsx").exists() and barrier.check_config(barrier.read_config(folder / "base_case")) == []
+    main(["all", str(f)])
+    project = barrier.load_project(f)
+    assert project.case_names == ["reference", "manning_x1.1"]
+    for case in project.case_names:
+        assert (folder / "results" / case / "done.json").exists()
+        assert (folder / "postprocess" / case / "timeseries.xlsx").exists()

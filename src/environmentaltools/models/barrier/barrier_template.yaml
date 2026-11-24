@@ -1,65 +1,60 @@
-# BARRIER project (environmentaltools.models.barrier): copy this file next to your base case and edit it.
-# Relative paths are resolved against the folder of this file.
+# =====================================================================================================================
+# BARRIER PROJECT (environmentaltools.models.barrier): everything the workflow needs is in this file, in four blocks.
+# Relative paths are relative to this file. Each step only does what is pending, so any of them can be run again:
 #
-# Workflow (each step only does what is pending, so it can be run again at any time):
-#   python -m environmentaltools.models.barrier base barrier.yaml          base case from 'geometry' and 'simulation'
-#   python -m environmentaltools.models.barrier prepare barrier.yaml       create/update the cases → review them
-#   python -m environmentaltools.models.barrier run barrier.yaml           run BARRIER in the cases without result
-#   python -m environmentaltools.models.barrier postprocess barrier.yaml   series, figures, comparison
-#   (or "all" for the three; from Python: project = barrier.load_project("barrier.yaml");
-#    barrier.prepare(project); barrier.run(project); barrier.postprocess(project))
+#   python -m environmentaltools.models.barrier base barrier.yaml          1. THE MODEL: base case from 'geometry' and
+#                                                                              'simulation'
+#   python -m environmentaltools.models.barrier prepare barrier.yaml       2. THE CASES: one folder per case; review
+#                                                                              cases/cases_overview.xlsx
+#   python -m environmentaltools.models.barrier run barrier.yaml           3. THE RUNS: BARRIER in the cases without result
+#   python -m environmentaltools.models.barrier postprocess barrier.yaml   4. THE ANALYSIS: series, figures, comparison
+#   python -m environmentaltools.models.barrier all barrier.yaml           the four in a row
+#
+# As it comes, it models an idealised channel and runs: the first 'all' writes the base case and creates cases.xlsx
+# with two example cases; review the table and run 'all' again. Then replace block 1 with your estuary (DEM, axis,
+# tide, discharge: put the files in inputs/). From Python: project = barrier.load_project("barrier.yaml"), then
+# barrier.prepare_base(project), barrier.prepare(project), barrier.run(project), barrier.postprocess(project).
+# Guide: "BARRIER: user guide" in the documentation of environmentaltools.
+# =====================================================================================================================
 
-base_case: base_case            # BARRIER's config.yaml + the CSV files it names; every case starts from it
-geometry: null                  # optional: build the geometry files of the base case (step 'base', also in
-                                # 'all'); null → the base case keeps its own. Two types, with the arguments of
-                                # build_geometry / prismatic_geometry (files relative to this file):
-#  type: dem                     #   from a DEM (raster or xyz) and the channel axis (upstream → mouth)
-#  dem: inputs/dem.tif
-#  axis: inputs/axis.shp
-#  dx: 200                       #   distance between sections (m)
-#  half_width: 2000              #   profile length on each side of the axis (m)
-#  top_level: 5                  #   highest level of the tables (m)
-#  smooth: 500                   #   smoothing along the channel (m)
-#  check_level: 2                #   level of the report and of the check of crossing sections (m)
-#
-#  type: prismatic               #   idealised channel: rectangular (side_slope 0) or trapezoidal sections
-#  length: 20000
-#  dx: 500
-#  bottom_width: 300             #   one number, or {points: [[km, value], ...], coordinate: km}
-#  bed: -5
-#  top_level: 5
-simulation: null                # optional: config.yaml and boundary series of the base case (step 'base'), with the
-                                # arguments of new_base_case; null → the base case keeps its own
-#  start: 2008-07-01
-#  end: 2008-11-30
-#  tide: inputs/tide.csv         #   csv (date or seconds, level m), a number, or {amplitude: 1.0}
-#  discharge: inputs/discharge.csv   # csv (date or seconds, m3/s) or a number
-#  salinity: 36.5                #   psu; null → no salinity
-#  config: {hydrodynamics: {manning_eta: true}}   # any other option of BARRIER's config.yaml
+
+# --- 1. THE MODEL: the base case, the starting point of every case ---------------------------------------------------
+base_case: base_case            # folder with BARRIER's config.yaml and the files it names
+geometry:                       # cross-sections.csv and along_channel_data.csv of the base case (null: it keeps its own)
+  type: prismatic               # idealised channel (rectangular if side_slope is 0, else trapezoidal); arguments of
+  length: 20000                 # prismatic_geometry. For a real channel, a DEM and the channel axis (build_geometry):
+  dx: 500                       #   type: dem
+  bottom_width: 300             #   dem: inputs/dem.tif         raster or xyz points, in the datum of the tide
+  side_slope: 0                 #   axis: inputs/axis.shp       line (or csv of points) from the upstream boundary to
+  bed: -5                       #                               the mouth, inside the channel
+  top_level: 5                  #   dx: 200                     distance between sections (m)
+  nmann: 0.025                  #   half_width: 2000            profile length on each side of the axis (m)
+                                #   top_level: 5                highest level of the tables (m)
+                                #   smooth: 500                 smoothing of the tables along the channel (m)
+                                #   check_level: 2              level of the report and of the crossing check (m)
+                                # Values that change along the channel: {points: [[km, value], ...], coordinate: km}
+simulation:                     # config.yaml and boundary series of the base case (null: it keeps its own); arguments
+  start: 2020-01-01             # of new_base_case
+  end: 2020-01-15
+  tide: {amplitude: 1.0}        # level at the mouth (m): a csv (date or seconds, level), a number, or a synthetic tide
+                                # {amplitude, period_hours: 12.42, mean: 0}
+  discharge: 50                 # river discharge at the upstream boundary (m3/s): a csv (date or seconds, value) or a
+                                # number
+  salinity: 36                  # sea salinity (psu); null: no salinity (faster, e.g. to calibrate the levels)
+  config: {}                    # any other option of BARRIER's config.yaml, e.g. {hydrodynamics: {courant_number: 0.15}}
 base_report_dir: base_report    # geometry.png, geometry_report.xlsx, signatures, copies of files edited by hand
-cases_file: cases.xlsx          # THE CASES: one row per case, one column per change of the base case (empty cell = as
-                                # in the base case); its 'legend' sheet explains the columns. If it does not exist,
-                                # prepare creates it with examples. The cases can also (or instead) go under 'cases:' below
-cases_dir: cases                # one folder per case: what BARRIER reads (+ variant.json, section_parameters.png)
-overview_file: null             # base case and cases side by side, to review before running
-                                # (null → <cases_dir>/cases_overview.xlsx)
-results_dir: results            # one folder per case: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
-postprocess_dir: postprocess    # one folder per case: timeseries.xlsx and figures
+# The files of the base case belong to these sections: change the sections, not the files (an edited file is written
+# again; a copy is kept in base_report/edited). Manning and Kh are calibrated with the cases (block 2).
 
-executable: null                # BARRIER executable, or a list (one per computer: the first that exists is used).
-                                # The environment variable BARRIER_EXE, if set, takes precedence; null → 'barrier' on the PATH
-executables: {}                 # other BARRIER builds by name, for the cases with `executable: <name>` (column
-                                # `executable` of the table), e.g. {centroid: [/mac/barrier, /wsl/barrier]}. Those
-                                # cases ignore BARRIER_EXE; changing a case's build makes prepare and run redo it
-work_dir: null                  # true → BARRIER writes in the system temporary folder and its files are moved to
-                                # results_dir at the end. Set it when results_dir is synced (Synology, OneDrive) or
-                                # on /mnt/c from WSL: writing the NetCDF there can corrupt it
-timeout_hours: null             # maximum run time per case
 
-# Cases written here instead of (or besides) the table: each one is the base case with the changes written under
-# its name (they can be combined). Changing a case, or the base case, makes prepare create it again and run run it
-# again. In the table the same changes are columns: along_channel.nmann.scale, hydrodynamics.courant_number,
-# files.tides.csv…
+# --- 2. THE CASES: the base case with changes ------------------------------------------------------------------------
+cases_file: cases.xlsx          # one row per case, one column per change of the base case (empty cell = as in the
+                                # base case); its 'legend' sheet explains the columns. If it does not exist, prepare
+                                # creates it with examples. The cases can also (or instead) go under 'cases:' below
+cases: {}
+# Cases written here: each one is the base case with the changes written under its name (they can be combined).
+# Changing a case, or the base case, makes prepare create it again and run run it again. In the table the same changes
+# are columns: along_channel.nmann.scale, hydrodynamics.courant_number, files.tides.csv…
 #   config:        merged into config.yaml (same structure as BARRIER's config)
 #   along_channel: {column: changes} of along_channel_data (nmann, kh, Sf, beta; x in m from the upstream boundary):
 #                    value: 0.03                      constant
@@ -67,20 +62,42 @@ timeout_hours: null             # maximum run time per case
 #                    steps: [[x_from, value], ...]    piecewise constant
 #                    sigma: 50                        Gaussian smoothing (in number of sections), alone or after the above
 #                    scale: 1.1 / add: 0.002          applied to the result (or to the current profile)
+#                    coordinate: km                   positions of the lists in km to the mouth instead of x
 #   files:         {name in the case: file}         replaces input files (e.g. another tide or discharge series)
-cases: {}
+#   executable:    a name of 'executables' (block 3): another build of BARRIER for this case
 #  kh_profile:                   # a profile is easier to write here than in a cell
 #    along_channel:
 #      kh: {points: [[0, 10], [20000, 50], [50000, 100], [70000, 300], [95000, 500]], sigma: 50}
 #  year_2010:
 #    config: {run: {start_date: "2010-01-01T00:00:00", end_date: "2010-03-01T00:00:00"}}
-#    files: {tides.csv: inputs/tides_2010.csv, dam_discharge.csv: inputs/discharge_2010.csv}
+#    files: {tides.csv: inputs/tides_2010.csv, discharge.csv: inputs/discharge_2010.csv}
+cases_dir: cases                # one folder per case: what BARRIER reads (+ variant.json, section_parameters.png)
+overview_file: null             # base case and cases side by side, to review before running
+                                # (null → <cases_dir>/cases_overview.xlsx)
 
+
+# --- 3. THE RUNS -----------------------------------------------------------------------------------------------------
+executable: null                # BARRIER executable, or a list (one per computer: the first that exists is used).
+                                # The environment variable BARRIER_EXE, if set, takes precedence; null → 'barrier' on
+                                # the PATH. Build it from https://github.com/mcobosb/Barrier
+executables: {}                 # other BARRIER builds by name, for the cases with `executable: <name>` (column
+                                # `executable` of the table), e.g. {centroid: [/mac/barrier, /wsl/barrier]}. Those
+                                # cases ignore BARRIER_EXE; changing a case's build makes prepare and run redo it
+results_dir: results            # one folder per case: NetCDF, log, barrier_console.txt, done.json (+ run_log.csv)
+work_dir: null                  # true → BARRIER writes in the system temporary folder and its files are moved to
+                                # results_dir at the end. Set it when results_dir is synced (Synology, OneDrive) or
+                                # on /mnt/c from WSL: writing the NetCDF there can corrupt it
+timeout_hours: null             # maximum run time per case
+
+
+# --- 4. THE ANALYSIS -------------------------------------------------------------------------------------------------
+postprocess_dir: postprocess    # one folder per case: timeseries.xlsx and figures
 postprocess:
-  points: null                  # series at these points: a file (xlsx/csv), a list of {name, km} or {name: km};
-                                # km = distance to the mouth. Example: {Mouth: 0, Gauge A: 20, Gauge B: 60}
+  points: {Mouth: 0, Middle: 10, Head: 19}   # series at these points: a file (xlsx/csv), a list of {name, km} or
+                                # {name: km}; km = distance to the mouth
   points_columns: {name: name, km: km}   # column names in the points file
-  variables: [eta, S]           # variables of the series (any (time, x) variable of the output, e.g. A for the area or W for the width between banks)
+  variables: [eta, S]           # variables of the series (any (time, x) variable of the output, e.g. A for the area or
+                                # W for the width between banks)
   forcings: true                # sheet 'forcings' in timeseries.xlsx: discharge at the upstream boundary and level
                                 # at the mouth, read from the output (they equal the imposed series)
   reference: null               # compare every case with: {case: reference} (a case of the list) or
