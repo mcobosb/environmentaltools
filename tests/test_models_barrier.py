@@ -469,3 +469,104 @@ def test_read_write_csv_round_trip(tmp_path):
     assert f.read_text() == text
     assert barrier.read_csv(f)["nmann"].tolist() == values
 
+
+
+# ------------------------------------------------------------------ geometry from a DEM and an axis
+def trapezoid_points(length=10000.0):
+    """xyz points of a straight channel along the x axis: bed -5 m 100 m wide, slopes 1:10 up to +3 m."""
+    def zprof(y):
+        a = np.abs(y)
+        return np.where(a <= 50, -5.0, np.where(a <= 130, -5 + (a - 50) / 10, 3.0))
+    X, Y = np.meshgrid(np.arange(-500, length + 501, 500.0), np.arange(-300, 301, 2.0))
+    return pd.DataFrame({"x": X.ravel(), "y": Y.ravel(), "z": zprof(Y.ravel())})
+
+
+def test_section_lines_follow_barrier_angles():
+    """Left bank looking downstream at AngMi, right bank at AngMd (radians from the east), as BARRIER places them."""
+    sec = barrier.section_lines([[0, 1000], [0, 0]], dx=300)            # flowing south
+    np.testing.assert_allclose(sec["x"], [0, 1000 / 3, 2000 / 3, 1000])  # equal steps closest to dx, ends included
+    np.testing.assert_allclose(sec["AngMi"], 0.0, atol=1e-12)            # left looking south = east
+    np.testing.assert_allclose(np.abs(sec["AngMd"]), np.pi, atol=1e-12)  # right = west
+    x, y = barrier.section_points(sec, [-10.0, 10.0])
+    np.testing.assert_allclose(x[0], [10.0, -10.0], atol=1e-9)
+
+
+def test_build_geometry_trapezoid_is_exact(capsys):
+    cs, along, report = barrier.build_geometry(trapezoid_points(), [[0, 0], [10000, 0]], dx=1000, half_width=250,
+                                               top_level=2, profile_step=1, level_step=0.5, kh=50)
+    t = cs[cs["x"] == 5000]
+    h = t["eta"].to_numpy()
+    np.testing.assert_allclose(t["A"], 100 * h + 10 * h ** 2, atol=1e-9)
+    np.testing.assert_allclose(t["P"][h > 0], 100 + 2 * h[h > 0] * np.sqrt(101), atol=1e-9)
+    np.testing.assert_allclose(t["B"][h > 0], 100 + 20 * h[h > 0], atol=1e-9)
+    np.testing.assert_allclose(t["xr"] - t["xl"], t["B"])
+    assert list(along.columns) == barrier.ALONG_COLUMNS                  # the order BARRIER reads
+    assert along["kh"].eq(50).all() and along["Sf"].eq(1).all() and len(along) == 11
+    assert barrier.check_cross_sections(cs).empty
+    assert not report["open_end"].any() and not report["crosses_next"].any()
+    assert "Warning" not in capsys.readouterr().out
+
+
+def test_section_table_dip_behind_higher_ground():
+    """A deeper dip behind a bank does not count until the water tops the bank; tables stay monotonic."""
+    s = np.arange(-100, 101, 1.0)
+    z = np.where(np.abs(s) <= 20, -3.0, 1.0)                             # channel 40 m wide, banks at +1 m
+    z = np.where((s > 50) & (s < 80), -4.0, z)                           # a deeper pond behind the right bank
+    t = barrier.section_table(s, z, top_level=2.0, level_step=0.5, bed_half_width=30)
+    below, above = t[t["z"] + t["eta"] <= 1.0], t[t["z"] + t["eta"] > 1.0]
+    assert t["z"].iloc[0] == -3.0                                        # the bed is the channel, not the pond
+    assert below["xr"].max() <= 21 and above["xr"].min() > 80
+    assert barrier.check_cross_sections(t).empty
+
+
+def test_build_geometry_from_raster(tmp_path, capsys):
+    import rasterio
+    from rasterio.transform import from_origin
+
+    xs, ys = np.arange(-200, 4201, 2.0), np.arange(300, -301, -2.0)
+    X, Y = np.meshgrid(xs, ys)
+    z = np.where(np.abs(Y) <= 50, -5.0, np.where(np.abs(Y) <= 130, -5 + (np.abs(Y) - 50) / 10, 3.0))
+    with rasterio.open(tmp_path / "dem.tif", "w", driver="GTiff", width=len(xs), height=len(ys), count=1,
+                       dtype="float64", transform=from_origin(-201, 301, 2, 2), nodata=-9999) as dst:
+        dst.write(z, 1)
+    cs, along, report = barrier.build_geometry(tmp_path / "dem.tif", [[0, 0], [4000, 0]], dx=1000, half_width=250,
+                                               top_level=2, out_dir=tmp_path / "case")
+    a = cs[cs["x"] == 2000].set_index("eta")["A"]
+    assert abs(a.iloc[-1] - (100 * 7 + 10 * 49)) / 1190 < 0.02         # nearest cell of a 2 m raster
+    assert barrier.read_csv(tmp_path / "case" / "cross-sections.csv").shape == cs.shape
+    assert list(barrier.read_csv(tmp_path / "case" / "along_channel_data.csv").columns) == barrier.ALONG_COLUMNS[:9]
+
+    barrier.build_geometry(tmp_path / "dem.tif", [[0, 0], [4000, 0]], dx=1000, half_width=100, top_level=2,
+                           verbose=False)                                # profiles shorter than the channel
+    assert "water reaches the end of the profile" in capsys.readouterr().out
+
+
+def test_smooth_sections_keeps_equal_sections():
+    cs, _, _ = barrier.build_geometry(trapezoid_points(), [[0, 0], [10000, 0]], dx=1000, half_width=250, top_level=2,
+                                      profile_step=1, level_step=0.5, verbose=False)
+    sm = barrier.smooth_sections(cs, 2000, level_step=0.5)
+    assert barrier.check_cross_sections(sm).empty
+    for col in ("A", "B", "P", "z"):
+        np.testing.assert_allclose(sm[col].to_numpy(), cs.sort_values(["x", "eta"])[col].to_numpy(), atol=1e-9)
+
+
+def test_crossing_sections_in_a_sharp_bend(capsys):
+    """Long sections in a sharp bend cross each other; smoothing the axis directions does not hide a real crossing."""
+    t = np.linspace(0, np.pi, 50)
+    axis = np.c_[300 * np.cos(t), 300 * np.sin(t)]                        # half circle, radius 300 m
+    X, Y = np.meshgrid(np.arange(-900, 901, 5.0), np.arange(-600, 901, 5.0))
+    ring = np.hypot(X, Y)
+    pts = pd.DataFrame({"x": X.ravel(), "y": Y.ravel(),
+                        "z": np.where(np.abs(ring.ravel() - 300) <= 250, -5.0, 3.0)})   # 500 m wide channel
+    _, _, report = barrier.build_geometry(pts, axis, dx=100, half_width=400, top_level=2, profile_step=5,
+                                          verbose=False)
+    assert report["crosses_next"].any()
+    assert "cross the next one" in capsys.readouterr().out
+
+
+def test_read_xyz_with_and_without_header(tmp_path):
+    (tmp_path / "a.xyz").write_text("1 2 -3.5\n4 5 1.0e+00\n")
+    (tmp_path / "b.csv").write_text("X,Y,Z\n1,2,-3.5\n4,5,1\n")
+    for f in ("a.xyz", "b.csv"):
+        df = barrier.read_xyz(tmp_path / f)
+        assert list(df.columns) == ["x", "y", "z"] and df["z"].tolist() == [-3.5, 1.0]

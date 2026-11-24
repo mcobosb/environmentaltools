@@ -166,8 +166,8 @@ Each step only does what is pending: a case changed in the list (or a changed
 base case) is created, run and postprocessed again; the rest are kept. Example:
 ``examples/models - E02 - barrier_workflow.py``.
 
-Building the geometry (``cross-sections.csv``, ``along_channel_data.csv``)
-from a channel axis and a DEM is not covered yet.
+The geometry (``cross-sections.csv``, ``along_channel_data.csv``) is built
+from a DEM (raster or xyz) and a channel axis with ``build_geometry``.
 
 Input files are written with every digit: rounding the geometry or the
 along-channel data to 10 significant digits changes the water level by
@@ -209,6 +209,17 @@ problems): :doc:`models/barrier`.
    set_section_parameter
    check_cross_sections
    fix_cross_sections
+   build_geometry
+   read_axis
+   read_xyz
+   section_lines
+   section_points
+   sample_profiles
+   section_table
+   smooth_sections
+   copy_downstream
+   crossing_sections
+   plot_geometry
    read_output
    bank_width
    read_project

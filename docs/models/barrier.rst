@@ -36,8 +36,9 @@ Limitations:
 - **One channel.** No networks or branches; tributaries enter as point
   discharges (lateral inflows).
 - **Geometry from tables.** The channel is what ``cross-sections.csv`` and
-  ``along_channel_data.csv`` say. Building them from a channel axis and a DEM is
-  not covered by this repository yet: for now they come from an existing case.
+  ``along_channel_data.csv`` say: one table of area, width and perimeter
+  against the level per section, built from a DEM and a channel axis (see
+  `Geometry from a DEM and an axis`_).
 - **The section average hides processes** that need to be parameterised: salt
   intrusion depends on the longitudinal dispersion ``Kh``, which is a
   calibration parameter, not a result.
@@ -111,15 +112,17 @@ comments). Read and write them with :func:`read_csv` and :func:`write_csv`.
      - One row per section: ``x`` (m), ``z`` bed (m), ``nmann`` (s/m\ :sup:`1/3`),
        ``xutm``, ``yutm`` (m), ``AngMd``, ``AngMi`` (bank angles, radians),
        ``beta``, ``Sf`` (≥ 1, optional), ``kh`` (m²/s, optional).
-     - From an existing case. Change the parameters with
-       :func:`set_section_parameter` / :func:`section_profile`, or from the
-       cases table (``along_channel.<column>.<option>``).
+     - :func:`build_geometry` (see below), or an existing case. Change the
+       parameters with :func:`set_section_parameter` /
+       :func:`section_profile`, or from the cases table
+       (``along_channel.<column>.<option>``).
    * - ``cross-sections.csv`` (``geometry.cross_sections_file``)
      - Several rows per section (same ``x``), one per water depth ``eta``
        (m above the bed): ``x, z, eta, B, A, P, Rh, sigma, xl, xr, beta``
        (``barrier.CROSS_SECTION_COLUMNS``).
-     - From an existing case. Check and correct it with
-       :func:`check_cross_sections` and :func:`fix_cross_sections`.
+     - :func:`build_geometry` (see below), or an existing case. Check and
+       correct it with :func:`check_cross_sections` and
+       :func:`fix_cross_sections`.
    * - Level at the mouth, e.g. ``tides.csv``
        (``hydrodynamics.boundary_conditions.downstream.file``)
      - ``seconds since run.start_date, level (m)``, same vertical datum as
@@ -175,6 +178,82 @@ BARRIER repository for every option):
   ``baroclinic``, boundary conditions), ``temperature``, ``sediment``,
   ``density``.
 - ``smoothing``: optional smoothing of the bathymetry and of the solution.
+
+
+Geometry from a DEM and an axis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`build_geometry` writes ``cross-sections.csv`` and
+``along_channel_data.csv`` from:
+
+- **a DEM**: a raster (GeoTIFF, VRT, ASCII grid…: the nearest cell) or xyz
+  points (a ``.xyz``/``.csv``/``.txt`` file or a DataFrame with ``x``, ``y``,
+  ``z``: linear interpolation on their triangulation). Topography and
+  bathymetry together, **in the same vertical datum as the tide at the mouth**:
+  BARRIER starts with the water at 0 m;
+- **the channel axis**, drawn by the user: a line (shapefile, GeoJSON,
+  GeoPackage…) or a csv with its points, **from the upstream boundary to the
+  mouth**, in the coordinates of the DEM. It must run inside the channel:
+  BARRIER places the banks at ``|xl|`` and ``|xr|`` from it.
+
+::
+
+    cs, along, report = barrier.build_geometry(
+        "dem.tif", "axis.shp",
+        dx=200,             # distance between sections along the axis (m)
+        half_width=2000,    # profile length on each side of the axis (m): beyond the banks
+        top_level=5,        # highest level of the tables (m): above the highest water expected
+        axis_smooth=1000,   # smoothing of the axis for the direction of the sections (m)
+        smooth=500,         # smoothing of the tables along the channel (m)
+        check_level=2,      # level of the report and of the check of crossing sections (m)
+        out_dir="base_case")
+    barrier.plot_geometry(cs, along, dem="dem.tif", top_level=2, file_name="geometry.png")
+
+What it does, step by step (each step is a function):
+
+1. :func:`section_lines`: sections every ``dx`` along the axis (equal steps,
+   the first at the upstream end and the last at the mouth), normal to the
+   axis smoothed with ``axis_smooth``. ``AngMi`` points to the left bank
+   looking downstream and ``AngMd`` to the right one (radians from the east),
+   as BARRIER reads them.
+2. :func:`sample_profiles`: the DEM along each section line.
+3. :func:`section_table`: one row per level, every ``level_step`` from the bed
+   to ``top_level``. At each level the water fills the continuous stretch
+   below it that contains the bed: a dip behind higher ground does not count
+   until the level tops it, so the banks open and ``A`` and ``B`` grow with
+   the level. ``B = xr − xl``, ``P`` along the wet profile, ``Rh = A / P``.
+   ``bed_half_width`` keeps the bed search near the axis (e.g. to skip a
+   deeper dock).
+4. :func:`smooth_sections` (``smooth``): each table averaged with its
+   neighbours along the channel. Tables taken one by one from a DEM jump from
+   one section to the next and BARRIER answers with a saw-tooth mean level; in
+   the Guadalquivir ``smooth = 500`` m (sections every 130–200 m) removed it
+   and changed the tidal volume by −0.4 %.
+5. :func:`copy_downstream` (``downstream_copies``): the last sections copied
+   from the one before them. A bed slope in the last sections made BARRIER
+   blow up at the mouth in the Guadalquivir.
+
+``along_channel_data.csv`` gets the bed of each section, the axis position and
+angles, ``nmann`` (0.03 by default) and ``beta = Sf = 1`` (and ``kh`` if given),
+in the order BARRIER reads them (``barrier.ALONG_COLUMNS``); Manning and the rest
+are calibrated afterwards.
+
+**The report** (one row per section) and the warnings point to what to check:
+
+- ``open_end``: the water reaches the end of the profile or a gap of the DEM
+  at ``top_level``: a larger ``half_width``, or fill the DEM;
+- ``crosses_next``: the wet line at ``check_level`` crosses the next section
+  (in a bend): a larger ``axis_smooth`` or ``dx``;
+- ``area_jump``: change of the area between neighbours (|Δ ln A|): large
+  jumps call for ``smooth``;
+- sections with the bed at 0 m or above start dry.
+
+**Validation.** A trapezoidal channel gives the exact ``A``, ``B`` and ``P``;
+with the raster and the section lines of the Guadalquivir (task 06 of
+PRO-2025_P_BARRIER_GUADALQUIVIR, 806 sections) it reproduces its geometry
+exactly (all 262 292 rows) and its smoothed geometry to 1e-10. A geometry built
+from a synthetic DEM of a 20 km S-shaped channel runs in BARRIER with the tide
+entering the whole channel.
 
 
 Preparing cases and running
