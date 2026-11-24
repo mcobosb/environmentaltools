@@ -2,6 +2,7 @@
 # Relative paths are resolved against the folder of this file.
 #
 # Workflow (each step only does what is pending, so it can be run again at any time):
+#   python -m environmentaltools.models.barrier geometry barrier.yaml      geometry of the base case (if 'geometry')
 #   python -m environmentaltools.models.barrier prepare barrier.yaml       create/update the cases → review them
 #   python -m environmentaltools.models.barrier run barrier.yaml           run BARRIER in the cases without result
 #   python -m environmentaltools.models.barrier postprocess barrier.yaml   series, figures, comparison
@@ -9,6 +10,25 @@
 #    barrier.prepare(project); barrier.run(project); barrier.postprocess(project))
 
 base_case: base_case            # BARRIER's config.yaml + the CSV files it names; every case starts from it
+geometry: null                  # optional: build the geometry files of the base case (step 'geometry', also in
+                                # 'all'); null → the base case keeps its own. Two types, with the arguments of
+                                # build_geometry / prismatic_geometry (files relative to this file):
+#  type: dem                     #   from a DEM (raster or xyz) and the channel axis (upstream → mouth)
+#  dem: inputs/dem.tif
+#  axis: inputs/axis.shp
+#  dx: 200                       #   distance between sections (m)
+#  half_width: 2000              #   profile length on each side of the axis (m)
+#  top_level: 5                  #   highest level of the tables (m)
+#  smooth: 500                   #   smoothing along the channel (m)
+#  check_level: 2                #   level of the report and of the check of crossing sections (m)
+#
+#  type: prismatic               #   idealised channel: rectangular (side_slope 0) or trapezoidal sections
+#  length: 20000
+#  dx: 500
+#  bottom_width: 300             #   one number, or {points: [[km, value], ...], coordinate: km}
+#  bed: -5
+#  top_level: 5
+geometry_dir: geometry          # geometry.png, geometry_report.xlsx and geometry_signature.json
 cases_file: cases.xlsx          # THE CASES: one row per case, one column per change of the base case (empty cell = as
                                 # in the base case); its 'legend' sheet explains the columns. If it does not exist,
                                 # prepare creates it with examples. The cases can also (or instead) go under 'cases:' below

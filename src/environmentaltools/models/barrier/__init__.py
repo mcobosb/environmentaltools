@@ -10,7 +10,8 @@ river, over weeks to years, where the cross-section average is enough. It does
 not resolve lateral or vertical structure (stratification, secondary currents).
 
 Geometry: ``cross-sections.csv`` and ``along_channel_data.csv`` from a DEM (raster or xyz points) and a channel
-axis with :func:`build_geometry` (see ``geometry.py``).
+axis with :func:`build_geometry`, or for an idealised channel with :func:`prismatic_geometry`; from the project file
+(section ``geometry``) with :func:`prepare_geometry` or the step ``geometry`` of the command line.
 
 Workflow, from one project file (start from ``barrier_template.yaml`` in this folder):
 a base case (a folder with BARRIER's ``config.yaml`` and its CSV files) and a table of
@@ -41,7 +42,7 @@ from .config import (BarrierProject, check_config, input_files, load_project, re
 from .inputs import (CROSS_SECTION_COLUMNS, MONOTONIC, check_cross_sections, fix_cross_sections, read_csv,
                      section_profile, set_section_parameter, write_csv, write_series, write_tributaries)
 from .geometry import (ALONG_COLUMNS, build_geometry, copy_downstream, crossing_sections, plot_geometry,
-                       prismatic_geometry, read_axis,
+                       prepare_geometry, prismatic_geometry, read_axis,
                        read_xyz, sample_profiles, section_lines, section_points, section_table, smooth_sections)
 from .cases import (cases_overview, cases_to_table, create_case, folder_signature, prepare, write_cases_table,
                     write_overview)
@@ -59,7 +60,8 @@ __all__ = [
     "CROSS_SECTION_COLUMNS", "MONOTONIC", "read_csv", "write_csv", "write_series", "write_tributaries",
     "section_profile", "set_section_parameter", "check_cross_sections", "fix_cross_sections",
     "ALONG_COLUMNS", "read_axis", "read_xyz", "section_lines", "section_points", "sample_profiles", "section_table",
-    "smooth_sections", "copy_downstream", "crossing_sections", "build_geometry", "prismatic_geometry", "plot_geometry",
+    "smooth_sections", "copy_downstream", "crossing_sections", "build_geometry", "prismatic_geometry",
+    "plot_geometry", "prepare_geometry",
     "create_case", "prepare", "cases_overview", "write_overview", "folder_signature",
     "barrier_executable", "first_nan_time", "has_time_steps", "is_readable", "run_case", "run",
     "COMPARE_TOLERANCES", "read_output", "bank_width", "latest_output", "distance_to_mouth", "time_step_hours", "tidal_mean",

@@ -610,3 +610,148 @@ def plot_geometry(cs, along, dem=None, examples=4, top_level=None, file_name=Non
     if file_name is not None:
         fig.savefig(file_name, dpi=150)
     return fig
+
+
+#: Function of each ``type`` of the ``geometry`` section of a project file.
+GEOMETRY_TYPES = {"dem": "build_geometry", "prismatic": "prismatic_geometry"}
+#: Keys of the ``geometry`` section that are files (relative to the project file).
+GEOMETRY_FILES = ("dem", "axis")
+
+
+def geometry_settings(project):
+    """Function and arguments of the ``geometry`` section of a project file, with its files resolved.
+
+    Returns:
+        tuple: ``(type, function, kwargs)``.
+
+    Raises:
+        ValueError: If ``type`` is missing or unknown, or a key is not an argument of the function.
+    """
+    import inspect
+
+    cfg = dict(project["geometry"] or {})
+    kind = cfg.pop("type", None)
+    if kind not in GEOMETRY_TYPES:
+        raise ValueError(f"geometry: 'type' must be one of {sorted(GEOMETRY_TYPES)} (got {kind!r})")
+    func = globals()[GEOMETRY_TYPES[kind]]
+    allowed = set(inspect.signature(func).parameters) - {"sections", "out_dir", "verbose"}
+    unknown = set(cfg) - allowed
+    if unknown:
+        raise ValueError(f"geometry ({kind}): unknown keys {sorted(unknown)}; use {sorted(allowed)}")
+    for k in GEOMETRY_FILES:
+        if isinstance(cfg.get(k), str):
+            cfg[k] = project.path(cfg[k])
+    return kind, func, cfg
+
+
+def _geometry_files(base):
+    """Names of the geometry files of the base case: those of its ``config.yaml``, else the usual ones."""
+    names = {"cross_sections_file": "cross-sections.csv", "along_channel_file": "along_channel_data.csv"}
+    if (Path(base) / "config.yaml").exists():
+        from .config import read_config
+
+        names.update({k: v for k, v in (read_config(base).get("geometry") or {}).items() if k in names and v})
+    return names
+
+
+def _sha1(path):
+    import hashlib
+
+    return hashlib.sha1(Path(path).read_bytes()).hexdigest()
+
+
+def prepare_geometry(project, force=False, verbose=True):
+    """Build the geometry of the base case from the ``geometry`` section of the project file, if it is pending.
+
+    The section holds ``type`` (``dem``: :func:`build_geometry`; ``prismatic``: :func:`prismatic_geometry`) and the
+    arguments of that function, with the files (``dem``, ``axis``) relative to the project file::
+
+        geometry:
+          type: dem
+          dem: inputs/dem.tif
+          axis: inputs/axis.shp
+          dx: 200
+          half_width: 2000
+          top_level: 5
+          smooth: 500
+
+    ``cross-sections.csv`` and ``along_channel_data.csv`` are written in the base case (with the names of its
+    ``config.yaml``, if it has one), so :func:`~environmentaltools.models.barrier.prepare` then creates the cases
+    again. ``geometry_dir`` gets ``geometry.png`` (:func:`plot_geometry`), ``geometry_report.xlsx`` (the report)
+    and ``geometry_signature.json``. The geometry is built again only when the section, the DEM or the axis (size
+    and date) changed, or when the files of the base case are missing or were changed by hand.
+
+    Args:
+        project (BarrierProject): Project configuration.
+        force (bool): Build it again anyway.
+
+    Returns:
+        pd.DataFrame | None: The report, or None if there was nothing to do.
+    """
+    import json
+
+    if not project["geometry"]:
+        if verbose:
+            print("No 'geometry' section in the project file: the base case keeps its geometry")
+        return None
+    kind, func, kwargs = geometry_settings(project)
+    base, out = project.base_case, project.path(project["geometry_dir"])
+    names = _geometry_files(base)
+    sig_file = out / "geometry_signature.json"
+    canon = lambda d: json.dumps(d, sort_keys=True, default=str)     # noqa: E731
+    sig = {"settings": json.loads(canon(project["geometry"])),
+           "inputs": {k: [str(kwargs[k]), kwargs[k].stat().st_size, kwargs[k].stat().st_mtime_ns]
+                      for k in GEOMETRY_FILES if isinstance(kwargs.get(k), Path)}}
+
+    why = "forced" if force else None
+    if why is None:
+        saved = json.loads(sig_file.read_text()) if sig_file.exists() else None
+        if saved is None:
+            why = "not built yet"
+        elif canon(saved.get("settings")) != canon(sig["settings"]):
+            why = "the geometry section changed"
+        elif canon(saved.get("inputs")) != canon(sig["inputs"]):
+            why = "the DEM or the axis changed"
+        else:
+            for name in names.values():
+                f = base / name
+                if not f.exists():
+                    why = f"{name} is missing in the base case"
+                elif _sha1(f) != saved.get("outputs", {}).get(name):
+                    why = f"{name} of the base case was changed by hand"
+                if why:
+                    break
+    if why is None:
+        if verbose:
+            print(f"Geometry: up to date ({base})")
+        return None
+    if verbose:
+        print(f"Geometry ({kind}): {why} → built again")
+
+    cs, along, report = func(**kwargs, verbose=verbose)
+    base.mkdir(parents=True, exist_ok=True)
+    write_csv(cs, base / names["cross_sections_file"])
+    write_csv(along, base / names["along_channel_file"])
+    out.mkdir(parents=True, exist_ok=True)
+
+    import matplotlib.pyplot as plt
+
+    from ._xlsx import write_tables
+
+    plot_geometry(cs, along, dem=kwargs.get("dem") if kind == "dem" else None, top_level=kwargs.get("check_level"),
+                  file_name=out / "geometry.png")
+    plt.close("all")
+    write_tables(out / "geometry_report.xlsx", {"sections": report}, legend={
+        "x": "Section: m from the upstream boundary (as in the BARRIER files)",
+        "km": "Distance to the mouth (km)",
+        "bed": "Bed elevation (m)",
+        "bed_offset": "Position of the bed point (m from the axis, left < 0)",
+        "width, area": "Width B (m) and area A (m²) at check_level (top_level if not given)",
+        "area_jump": "Change of the area from the previous section, |Δ ln A| (large jumps: use smooth)",
+        "open_end": "The water reaches the end of the profile or a gap of the DEM at top_level",
+        "crosses_next": "The wet line at check_level crosses the next section",
+        "files": f"{names['cross_sections_file']} and {names['along_channel_file']} in {base}",
+    })
+    sig["outputs"] = {name: _sha1(base / name) for name in names.values()}
+    sig_file.write_text(json.dumps(sig, indent=1, default=str))
+    return report

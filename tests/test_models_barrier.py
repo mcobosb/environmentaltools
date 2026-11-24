@@ -599,3 +599,68 @@ def test_prismatic_geometry_along_the_channel():
         barrier.prismatic_geometry(1000, dx=100, bottom_width=10, bed=-1, top_level=-2)
     with pytest.raises(ValueError, match="not both 0"):
         barrier.prismatic_geometry(1000, dx=100, bottom_width=0, side_slope=0, bed=-1, top_level=2)
+
+
+def test_prepare_geometry_only_when_pending(base_case, tmp_path, capsys):
+    """The 'geometry' section builds the base case files once, and again when its settings or the files change."""
+    geo = {"type": "prismatic", "length": 10000, "dx": 1000, "bottom_width": 100, "bed": -5, "top_level": 2}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case), "geometry": geo, "cases": {"a": {}}}))
+    report = barrier.prepare_geometry(barrier.load_project(f), verbose=False)
+    assert len(report) == 11
+    cs = barrier.read_csv(base_case / "cross-sections.csv")                 # names of the base config.yaml
+    np.testing.assert_allclose(cs.loc[cs["x"] == 0, "A"], 100 * cs.loc[cs["x"] == 0, "eta"])
+    for name in ("geometry.png", "geometry_report.xlsx", "geometry_signature.json"):
+        assert (tmp_path / "geometry" / name).exists()
+
+    assert barrier.prepare_geometry(barrier.load_project(f), verbose=False) is None        # nothing changed
+    assert barrier.prepare_geometry(barrier.load_project(f, {"geometry": {"bed": -6}}), verbose=False) is not None
+    assert barrier.read_csv(base_case / "along_channel_data.csv")["z"].eq(-6).all()
+    with open(base_case / "cross-sections.csv", "a") as fh:                                # edited by hand
+        fh.write("10000,-6,9,1,1,1,1,1,-1,1,1\n")
+    project = barrier.load_project(f, {"geometry": {"bed": -6}})
+    assert barrier.prepare_geometry(project) is not None
+    assert "changed by hand" in capsys.readouterr().out
+    assert barrier.prepare_geometry(project, force=True, verbose=False) is not None
+
+
+def test_prepare_geometry_from_xyz_and_axis_files(tmp_path):
+    """Files of the section are relative to the project file; a new DEM builds the geometry again."""
+    import os
+
+    (tmp_path / "inputs").mkdir()
+    trapezoid_points(4000).to_csv(tmp_path / "inputs" / "dem.xyz", sep=" ", index=False, header=False)
+    pd.DataFrame({"x": [0, 4000], "y": [0, 0]}).to_csv(tmp_path / "inputs" / "axis.csv", index=False)
+    geo = {"type": "dem", "dem": "inputs/dem.xyz", "axis": "inputs/axis.csv", "dx": 1000, "half_width": 250,
+           "top_level": 2, "profile_step": 1, "level_step": 0.5}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": "base", "geometry": geo, "cases": {"a": {}}}))
+    report = barrier.prepare_geometry(barrier.load_project(f), verbose=False)
+    assert len(report) == 5 and (tmp_path / "base" / "cross-sections.csv").exists()   # usual names, new folder
+    assert barrier.prepare_geometry(barrier.load_project(f), verbose=False) is None
+    st = (tmp_path / "inputs" / "dem.xyz").stat()
+    os.utime(tmp_path / "inputs" / "dem.xyz", ns=(st.st_atime_ns, st.st_mtime_ns + 10 ** 9))
+    assert barrier.prepare_geometry(barrier.load_project(f), verbose=False) is not None
+
+
+def test_geometry_section_errors(base_case, tmp_path):
+    with pytest.raises(ValueError, match="needs 'type'"):
+        barrier.load_project({"base_case": str(base_case), "cases": {"a": {}}, "geometry": {"dx": 100}})
+    project = barrier.load_project({"base_case": str(base_case), "cases": {"a": {}},
+                                    "geometry": {"type": "prismatic", "lenght": 1000}})
+    with pytest.raises(ValueError, match="unknown keys \\['lenght'\\]"):
+        barrier.prepare_geometry(project)
+
+
+def test_all_builds_the_geometry_first(base_case, tmp_path, monkeypatch):
+    from environmentaltools.models.barrier.__main__ import main
+
+    monkeypatch.delenv("BARRIER_EXE", raising=False)
+    geo = {"type": "prismatic", "length": 10000, "dx": 1000, "bottom_width": 100, "bed": -5, "top_level": 2}
+    f = tmp_path / "barrier.yaml"
+    f.write_text(yaml.safe_dump({"base_case": str(base_case), "geometry": geo, "executable": str(fake_barrier(tmp_path)),
+                                 "cases": {"ref": {}}}))
+    main(["all", str(f)])
+    case_cs = barrier.read_csv(tmp_path / "cases" / "ref" / "cross-sections.csv")
+    assert case_cs["B"].max() == 100                                        # the case has the new geometry
+    assert (tmp_path / "results" / "ref" / "done.json").exists()

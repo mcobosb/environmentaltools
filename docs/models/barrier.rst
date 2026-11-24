@@ -283,6 +283,48 @@ a map. The report, the warnings and ``along_channel_data.csv`` are those of
 :func:`build_geometry`. The minimal example below uses it.
 
 
+From the project file
+~~~~~~~~~~~~~~~~~~~~~
+
+Either geometry can be built from the project file, without code: a
+``geometry`` section with ``type`` (``dem`` or ``prismatic``) and the
+arguments of :func:`build_geometry` or :func:`prismatic_geometry` (files
+relative to the project file):
+
+.. code-block:: yaml
+
+   base_case: base_case
+   geometry:
+     type: dem
+     dem: inputs/dem.tif
+     axis: inputs/axis.shp
+     dx: 200
+     half_width: 2000
+     top_level: 5
+     smooth: 500
+     check_level: 2
+
+.. code-block:: bash
+
+   python -m environmentaltools.models.barrier geometry barrier.yaml
+
+:func:`prepare_geometry` writes ``cross-sections.csv`` and
+``along_channel_data.csv`` in the base case (with the names of its
+``config.yaml``, if it has one), and ``geometry.png``,
+``geometry_report.xlsx`` and ``geometry_signature.json`` in ``geometry_dir``
+(``geometry/`` by default). Like the other steps, it only does what is pending:
+the geometry is built again when the section, the DEM or the axis (size and
+date) change, or when the files of the base case are missing or were edited by
+hand (they belong to the section: edit the section, not the files). Since the
+base case changes, ``prepare`` then creates the cases again. ``--again``
+builds it anyway. ``all`` runs it first when the section exists.
+
+Manning, ``Kh`` and the rest of ``along_channel_data.csv`` are written with
+the values of the section (``nmann``, ``kh``): calibrate them with the cases
+table (``along_channel.nmann.scale``…), so that building the geometry again
+does not lose them.
+
+
 Preparing cases and running
 ---------------------------
 
@@ -339,17 +381,22 @@ with ``along_channel.kh.coordinate = km`` multiplies Kh by 0.7 in the first
     from environmentaltools.models import barrier
 
     project = barrier.load_project("barrier.yaml")
+    barrier.prepare_geometry(project)  # only with a 'geometry' section (see above)
     barrier.prepare(project)       # create/update the case folders + cases_overview.xlsx
     barrier.run(project)           # run the cases without result
     barrier.postprocess(project)   # series, figures, comparison with the reference
 
 .. code-block:: bash
 
+   python -m environmentaltools.models.barrier geometry barrier.yaml [--again]
    python -m environmentaltools.models.barrier prepare barrier.yaml
    python -m environmentaltools.models.barrier run barrier.yaml [--case NAME] [--again]
    python -m environmentaltools.models.barrier postprocess barrier.yaml
    python -m environmentaltools.models.barrier all barrier.yaml
 
+- :func:`prepare_geometry` (``geometry``; also the first step of ``all`` when
+  the project has a ``geometry`` section) writes the geometry of the base case
+  (see `From the project file`_).
 - :func:`prepare` copies the base case into ``cases_dir/<case>`` and applies the
   changes. It writes ``variant.json`` and ``base_signature.txt`` to know when a
   case is out of date (its row, the base case or a replacement file changed),

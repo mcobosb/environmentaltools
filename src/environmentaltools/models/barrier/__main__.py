@@ -1,31 +1,35 @@
 """Command line of the BARRIER workflow: ``python -m environmentaltools.models.barrier <step> barrier.yaml``.
 
 Steps:
+    geometry      build the geometry of the base case from the 'geometry' section (if something changed)
     prepare       create or update the cases of the list and the overview to review them
     run           run BARRIER in the cases without result (--case NAME for some, --again to repeat)
     postprocess   series at points, figures and comparison of the new results (--again for all)
-    all           the three steps in a row
+    all           every step in a row (geometry only if the project has that section)
 """
 
 import argparse
 import sys
 
-from . import load_project, postprocess, prepare, run
+from . import load_project, postprocess, prepare, prepare_geometry, run
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m environmentaltools.models.barrier", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["prepare", "run", "postprocess", "all"])
+    parser.add_argument("step", choices=["geometry", "prepare", "run", "postprocess", "all"])
     parser.add_argument("project", help="project file (barrier.yaml)")
     parser.add_argument("--case", action="append", help="only this case (can be repeated)")
-    parser.add_argument("--again", action="store_true", help="repeat finished cases (run) or all of them (postprocess)")
+    parser.add_argument("--again", action="store_true",
+                        help="build the geometry again (geometry), repeat finished cases (run) or all of them (postprocess)")
     args = parser.parse_args(argv)
 
     import matplotlib
 
     matplotlib.use("Agg")
     project = load_project(args.project)
+    if args.step == "geometry" or (args.step == "all" and project["geometry"]):
+        prepare_geometry(project, force=args.again and args.step == "geometry")
     if args.step in ("prepare", "all"):
         prepare(project)
     if args.step in ("run", "all"):

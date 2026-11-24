@@ -35,6 +35,8 @@ DEFAULTS = {
     "executable": None,
     "executables": {},
     "base_case": None,
+    "geometry": None,
+    "geometry_dir": "geometry",
     "cases_dir": "cases",
     "results_dir": "results",
     "postprocess_dir": "postprocess",
@@ -325,6 +327,11 @@ class BarrierProject:
             if unknown:
                 raise ValueError(f"Case '{name}': unknown keys {sorted(unknown)} (use config, along_channel, files, "
                                  "executable)")
+        if d["geometry"]:
+            from .geometry import GEOMETRY_TYPES
+
+            if not isinstance(d["geometry"], dict) or d["geometry"].get("type") not in GEOMETRY_TYPES:
+                raise ValueError(f"geometry: needs 'type', one of {sorted(GEOMETRY_TYPES)}")
         ref = d["postprocess"].get("reference") or {}
         if ref and not (("case" in ref) ^ ("file" in ref)):
             raise ValueError("postprocess: reference needs either 'case' (a case of the list) or 'file' (a NetCDF)")
